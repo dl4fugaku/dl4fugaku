@@ -30,4 +30,4 @@ RUN cp cmake/config.cmake build
 RUN cd build && cmake .. && make -j4
 RUN cd python && python3 setup.py install
 
-WORKDIR /workdir/
+WORKDIR /workdir/projects
