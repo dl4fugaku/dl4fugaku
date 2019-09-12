@@ -30,5 +30,6 @@ RUN pip3 install -U --user keras_preprocessing==1.0.5 --no-deps
 RUN wget https://github.com/bazelbuild/bazel/archive/0.29.1.tar.gz
 RUN tar -xvf 0.29.1.tar.gz
 WORKDIR bazel-0.29.1
-RUN PROTOC=`pwd`/bin/protoc EXTRA_BAZEL_ARGS="--host_javabase=@local_jdk//:jdk" GRPC_JAVA_PLUGIN=`pwd`/grpc-java bash ./compile.sh
+ENV EXTRA_BAZEL_ARGS --host_javabase=@local_jdk//:jdk
+RUN ./compile.sh
 # export PATH=$PATH:`pwd`/../bazel-0.25.2/output
