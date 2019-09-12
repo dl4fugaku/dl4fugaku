@@ -43,4 +43,4 @@ RUN wget https://github.com/tensorflow/tensorflow/archive/v2.0.0-rc1.tar.gz
 RUN tar -xvf v2.0.0-rc1.tar.gz
 WORKDIR tensorflow-2.0.0-rc1
 RUN ./configure
-RUN bazel build --config=v2 //tensorflow/tools/pip_package:build_pip_package
+RUN bazel build --jobs 12 --config=v2 //tensorflow/tools/pip_package:build_pip_package
