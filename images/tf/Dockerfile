@@ -22,6 +22,9 @@ RUN apt-get -yqq install --no-install-recommends python3-dev && \
     apt-get -yqq install --no-install-recommends python3-wheel && \
     apt-get -yqq install --no-install-recommends python3-setuptools
 
+RUN ln -s /usr/bin/python3 /usr/bin/python & \
+    ln -s /usr/bin/pip3 /usr/bin/pip
+    
 RUN pip3 install jupyter
 RUN pip3 install six numpy wheel setuptools mock
 RUN pip3 install -U --user keras_applications==1.0.6 --no-deps
