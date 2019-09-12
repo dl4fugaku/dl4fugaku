@@ -7,7 +7,12 @@ RUN apt-get update && \
     apt-get install -yqq sudo && \
     apt-get install -yqq git && \
     apt-get install -yqq build-essential && \
-    apt-get install -yqq cmake
+    apt-get install -yqq cmake  && \
+    apt-get install -yqq pkg-config  && \
+    apt-get install -yqq zip  && \
+    apt-get install -yqq zlib1g-dev  && \
+    apt-get install -yqq unzip
+
 
 RUN apt-get -yqq install --no-install-recommends python3-dev && \
     apt-get -yqq install --no-install-recommends python3-pip && \
@@ -15,18 +20,4 @@ RUN apt-get -yqq install --no-install-recommends python3-dev && \
     apt-get -yqq install --no-install-recommends python3-setuptools
 
 RUN pip3 install jupyter
-# RUN pip3 install psutil decorator attrs
-
-# TODO: freeze to commit/release
-# TODO: merge commands when debugged
-# TODO: check if config needs to be adnjusted
-#RUN git clone --recursive https://github.com/dmlc/tvm
-#WORKDIR /workdir/tvm 
-#RUN mkdir build
-#RUN cp cmake/config.cmake build
-##RUN cd build && cmake .. && make -j4
-#RUN cd python && python3 setup.py install
-#RUN cd topi/python && python3 setup.py install
-#RUN cd nnvm/python && python3 setup.py install
-
-WORKDIR /workdir/projects
+RUN pip3 install six numpy wheel setuptools mock
