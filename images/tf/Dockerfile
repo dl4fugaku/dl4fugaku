@@ -23,3 +23,9 @@ RUN pip3 install jupyter
 RUN pip3 install six numpy wheel setuptools mock
 RUN pip3 install -U --user keras_applications==1.0.6 --no-deps
 RUN pip3 install -U --user keras_preprocessing==1.0.5 --no-deps
+
+WORKDIR bazel
+wget https://github.com/bazelbuild/bazel/releases/download/0.25.2/bazel-0.25.2-dist.zip
+unzip ../bazel-0.25.2-dist.zip
+PROTOC=`pwd`/bin/protoc EXTRA_BAZEL_ARGS="--host_javabase=@local_jdk//:jdk" GRPC_JAVA_PLUGIN=`pwd`/grpc-java bash ./compile.sh
+# export PATH=$PATH:`pwd`/../bazel-0.25.2/output
