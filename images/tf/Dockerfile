@@ -14,9 +14,9 @@ RUN apt-get update && \
     apt-get install -yqq unzip && \
     apt-get install -yqq wget
 
-RUN apt-get install -yqq openjdk-8-jdk
 RUN apt-get install -yqq libopenblas-dev
-
+RUN apt-get install -yqq libhdf5-dev
+RUN apt-get install -yqq openjdk-8-jdk
 
 RUN apt-get -yqq install --no-install-recommends python3-dev && \
     apt-get -yqq install --no-install-recommends python3-pip && \
