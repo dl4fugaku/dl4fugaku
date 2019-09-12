@@ -12,7 +12,8 @@ RUN apt-get update && \
     apt-get install -yqq zip && \
     apt-get install -yqq zlib1g-dev && \
     apt-get install -yqq unzip && \
-    apt-get install -yqq wget
+    apt-get install -yqq wget && \
+    apt-get install -yqq openjdk-11-jdk
 
 
 RUN apt-get -yqq install --no-install-recommends python3-dev && \
