@@ -7,11 +7,12 @@ RUN apt-get update && \
     apt-get install -yqq sudo && \
     apt-get install -yqq git && \
     apt-get install -yqq build-essential && \
-    apt-get install -yqq cmake  && \
-    apt-get install -yqq pkg-config  && \
-    apt-get install -yqq zip  && \
-    apt-get install -yqq zlib1g-dev  && \
-    apt-get install -yqq unzip
+    apt-get install -yqq cmake && \
+    apt-get install -yqq pkg-config && \
+    apt-get install -yqq zip && \
+    apt-get install -yqq zlib1g-dev && \
+    apt-get install -yqq unzip && \
+    apt-get install -yqq wget
 
 
 RUN apt-get -yqq install --no-install-recommends python3-dev && \
@@ -25,7 +26,7 @@ RUN pip3 install -U --user keras_applications==1.0.6 --no-deps
 RUN pip3 install -U --user keras_preprocessing==1.0.5 --no-deps
 
 WORKDIR bazel
-wget https://github.com/bazelbuild/bazel/releases/download/0.25.2/bazel-0.25.2-dist.zip
-unzip ../bazel-0.25.2-dist.zip
-PROTOC=`pwd`/bin/protoc EXTRA_BAZEL_ARGS="--host_javabase=@local_jdk//:jdk" GRPC_JAVA_PLUGIN=`pwd`/grpc-java bash ./compile.sh
+RUN wget https://github.com/bazelbuild/bazel/releases/download/0.25.2/bazel-0.25.2-dist.zip
+RUN unzip bazel-0.25.2-dist.zip
+RUN PROTOC=`pwd`/bin/protoc EXTRA_BAZEL_ARGS="--host_javabase=@local_jdk//:jdk" GRPC_JAVA_PLUGIN=`pwd`/grpc-java bash ./compile.sh
 # export PATH=$PATH:`pwd`/../bazel-0.25.2/output
