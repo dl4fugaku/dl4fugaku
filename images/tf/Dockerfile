@@ -44,3 +44,4 @@ RUN tar -xvf v2.0.0-rc1.tar.gz
 WORKDIR tensorflow-2.0.0-rc1
 RUN ./configure
 RUN bazel build --jobs 12 --config=v2 //tensorflow/tools/pip_package:build_pip_package
+RUN ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./tmp/tensorflow_pkg
