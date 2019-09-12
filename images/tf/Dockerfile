@@ -37,3 +37,8 @@ RUN unzip bazel-0.29.1-dist.zip
 ENV EXTRA_BAZEL_ARGS --host_javabase=@local_jdk//:jdk
 RUN ./compile.sh
 ENV PATH="/workdir/bazel/output/:${PATH}"
+
+WORKDIR ..
+RUN wget https://github.com/tensorflow/tensorflow/archive/v2.0.0-rc1.tar.gz
+RUN tar -xvf v2.0.0-rc1.tar.gz
+WORKDIR tensorflow-2.0.0-rc1
