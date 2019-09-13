@@ -49,3 +49,7 @@ RUN bazel build --jobs 12 --config=v2 //tensorflow/tools/pip_package:build_pip_p
 RUN ./bazel-bin/tensorflow/tools/pip_package/build_pip_package ./tmp/tensorflow_pkg
 RUN pip3 install ./tmp/tensorflow_pkg/tensorflow-2.0.0rc1-cp37-cp37m-linux_aarch64.whl
 WORKDIR ..
+
+RUN pip3 install pydataset
+RUN pip3 install py-cpuinfo
+RUN pip3 install system_query[cpu, hdd, ram, swap]
