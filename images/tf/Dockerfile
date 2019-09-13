@@ -52,4 +52,4 @@ WORKDIR ..
 
 RUN pip3 install pydataset
 RUN pip3 install py-cpuinfo
-RUN pip3 install system_query[cpu, hdd, ram, swap]
+RUN pip3 install system_query[cpu,hdd,ram,swap]
