@@ -1,18 +1,20 @@
 import torch
 import torch.nn
 import torch.nn.functional as F
+import torch.backends.mkldnn
 import numpy as np
 from timeit import default_timer as timer
 
 # TODO: consider calling functional directly
 #result = F.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1)
+torch.backends.mkldnn.enabled = False
 
 cnt_channels = 3
-size_image = 256
+size_image = 456
 cnt_filters = 32
 size_kernel = 3
 size_batch = 32
-cnt_repeats = 10
+cnt_repeats = 1
 
 conv1 = torch.nn.Conv2d(in_channels=cnt_channels,
                         out_channels=cnt_filters,
