@@ -26,7 +26,7 @@ conv1 = torch.nn.Conv2d(in_channels=cnt_channels,
                         bias=True,
                         padding_mode='zeros')
 
-# TODO: confirt channel ordering
+# TODO: confirm channel ordering
 np_random = np.ones((size_batch,
                      cnt_channels,
                      size_image,
