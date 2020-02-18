@@ -37,4 +37,3 @@ for i in range(cnt_repeats):
 time_end = timer()
 
 print(f"time: {time_end - time_start}")
-
