@@ -8,7 +8,7 @@ from timeit import default_timer as timer
 #result = F.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1)
 
 cnt_channels = 3
-size_image = 512
+size_image = 256
 cnt_filters = 32
 size_kernel = 3
 size_batch = 32
