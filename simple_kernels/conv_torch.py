@@ -30,10 +30,11 @@ np_random = np.ones((size_batch,
                      size_image,
                      size_image)).astype(np.float)
 
-time_start = timer()
 tensor_input = torch.Tensor(np_random)
-time_end = timer()
+time_start = timer()
 for i in range(cnt_repeats):
     result = conv1(tensor_input)
+time_end = timer()
 
 print(f"time: {time_end - time_start}")
+
