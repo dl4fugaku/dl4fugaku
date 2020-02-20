@@ -11,10 +11,10 @@ torch.backends.mkldnn.enabled = False
 
 cnt_channels = 3
 size_image = 224
-cnt_filters = 32
+cnt_filters = 64
 size_kernel = 3
 size_batch = 32
-cnt_repeats = 1
+cnt_repeats = 10
 
 conv1 = torch.nn.Conv2d(in_channels=cnt_channels,
                         out_channels=cnt_filters,
@@ -34,15 +34,15 @@ np_random = np.ones((size_batch,
 
 tensor_input = torch.Tensor(np_random)
 
-device = torch.device("cuda")
-torch.cuda.set_device(0)
-tensor_input = tensor_input.to(device)
-conv1.to(device)
+#device = torch.device("cuda")
+#torch.cuda.set_device(0)
+#tensor_input = tensor_input.to(device)
+#conv1.to(device)
 
 time_start = timer()
 for i in range(cnt_repeats):
     result = conv1(tensor_input)
-torch.cuda.synchronize()
+#torch.cuda.synchronize()
 time_end = timer()
 milliseconds = (time_end - time_start) * 1000 / cnt_repeats
-print(f"time: {milliseconds:0.3} ms")
+print(f"time: {milliseconds:0.4} ms")
