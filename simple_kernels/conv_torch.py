@@ -7,10 +7,10 @@ from timeit import default_timer as timer
 
 # TODO: consider calling functional directly
 #result = F.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1)
-torch.backends.mkldnn.enabled = True
+torch.backends.mkldnn.enabled = False
 
 cnt_channels = 3
-size_image = 512
+size_image = 244
 cnt_filters = 32
 size_kernel = 3
 size_batch = 32
@@ -33,9 +33,16 @@ np_random = np.ones((size_batch,
                      size_image)).astype(np.float32)
 
 tensor_input = torch.Tensor(np_random)
+
+device = torch.device("cuda")
+torch.cuda.set_device(0)
+tensor_input = tensor_input.to(device)
+conv1.to(device)
+
 time_start = timer()
 for i in range(cnt_repeats):
     result = conv1(tensor_input)
+torch.cuda.synchronize()
 time_end = timer()
-
-print(f"time: {time_end - time_start}")
+milliseconds = (time_end - time_start) * 1000 / cnt_repeats
+print(f"time: {milliseconds:0.3} ms")
