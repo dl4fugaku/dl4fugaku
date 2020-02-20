@@ -10,7 +10,7 @@ from timeit import default_timer as timer
 torch.backends.mkldnn.enabled = False
 
 cnt_channels = 3
-size_image = 244
+size_image = 224
 cnt_filters = 32
 size_kernel = 3
 size_batch = 32
