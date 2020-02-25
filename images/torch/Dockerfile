@@ -63,3 +63,5 @@ RUN pip3 install ninja pyyaml cffi typing
 WORKDIR /workdir/pytorch
 RUN git checkout v1.4.0 && git submodule update --init --recursive 
 RUN python3 setup.py install
+WORKDIR /workdir/
+RUN git clone https://github.com/dl4fugaku/dl4fugaku.git

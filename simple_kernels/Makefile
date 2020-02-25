@@ -9,3 +9,7 @@ cprof:
 perf:
 	sudo perf record -F 99 --call-graph dwarf -g python3 ./conv_torch.py
 	sudo perf report
+
+trace:
+	export LD_PROFILE=libopenblas.so.0
+	python3 ./conv_torch
