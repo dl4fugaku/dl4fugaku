@@ -59,4 +59,7 @@ ENV CFLAGS="$CMAKE_C_FLAGS"
 
 RUN git clone --recursive https://github.com/pytorch/pytorch.git
 RUN pip3 install ninja pyyaml cffi typing
-RUN cd pytorch; git checkout v1.4.0 && python3 setup.py install
+
+WORKDIR /workdir/pytorch
+RUN git checkout v1.4.0 && git submodule update --init --recursive 
+RUN python3 setup.py install
