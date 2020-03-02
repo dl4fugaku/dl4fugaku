@@ -14,13 +14,13 @@ size_image = 224
 cnt_filters = 64
 size_kernel = 3
 size_batch = 32
-cnt_repeats = 10
+cnt_repeats = 4
 
 conv1 = torch.nn.Conv2d(in_channels=cnt_channels,
                         out_channels=cnt_filters,
                         kernel_size=size_kernel,
                         stride=1,
-                        padding=0,
+                        padding=1,
                         dilation=1,
                         groups=1,
                         bias=True,
@@ -33,7 +33,8 @@ np_random = np.ones((size_batch,
                      size_image)).astype(np.float32)
 
 tensor_input = torch.Tensor(np_random)
-
+print(tensor_input.dtype)
+print(conv1.weight.dtype)
 #device = torch.device("cuda")
 #torch.cuda.set_device(0)
 #tensor_input = tensor_input.to(device)
@@ -44,5 +45,9 @@ for i in range(cnt_repeats):
     result = conv1(tensor_input)
 #torch.cuda.synchronize()
 time_end = timer()
-milliseconds = (time_end - time_start) * 1000 / cnt_repeats
+print(result.shape)
+elapsed_seconds = (time_end - time_start) / cnt_repeats
+milliseconds =  elapsed_seconds * 1000
+samples_per_second = size_batch / elapsed_seconds
 print(f"time: {milliseconds:0.4} ms")
+print(f"ips:  {samples_per_second:0.4} ms")
