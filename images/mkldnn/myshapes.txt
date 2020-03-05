@@ -8,6 +8,6 @@
 #mb 	Minibatch (amount of images processed at once)
 #g 	Groups (a way to reduce the amount of computations, see Alexnet topology)
 
-mb64ic3ih244oc32oh244kh3ph1n"conv3x3"
+mb64ic3ih224oc32oh224kh3ph1n"conv3x3"
 
 # WHAT THE HECK IS n????
