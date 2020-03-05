@@ -7,14 +7,14 @@ from timeit import default_timer as timer
 
 # TODO: consider calling functional directly
 #result = F.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1)
-torch.backends.mkldnn.enabled = False
+torch.backends.mkldnn.enabled = True
 
 cnt_channels = 3
 size_image = 224
-cnt_filters = 64
+cnt_filters = 32
 size_kernel = 3
-size_batch = 32
-cnt_repeats = 4
+size_batch = 64
+cnt_repeats = 20
 
 conv1 = torch.nn.Conv2d(in_channels=cnt_channels,
                         out_channels=cnt_filters,
@@ -26,6 +26,7 @@ conv1 = torch.nn.Conv2d(in_channels=cnt_channels,
                         bias=True,
                         padding_mode='zeros')
 
+conv1.eval()
 # TODO: confirm channel ordering
 np_random = np.ones((size_batch,
                      cnt_channels,
