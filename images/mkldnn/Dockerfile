@@ -27,4 +27,4 @@ RUN mkdir -p build && cd build && cmake .. && make -j 4
 WORKDIR build
 RUN make install
 WORKDIR tests/benchdnn
-COPY run.sh ./
+COPY run.sh myshapes.txt ./
