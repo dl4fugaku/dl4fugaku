@@ -68,3 +68,4 @@ RUN git clone https://github.com/dl4fugaku/dl4fugaku.git
 RUN apt-get install -y linux-tools-generic
 RUN rm /usr/bin/perf
 RUN ln -s /usr/lib/linux-tools/*/perf /usr/bin/perf
+RUN apt-get install -yqq mc
