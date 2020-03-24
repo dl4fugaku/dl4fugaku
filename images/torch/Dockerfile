@@ -57,6 +57,10 @@ ENV CMAKE_C_FLAGS="-msse4.2 -msse2avx -gno-inline-points -fearly-inlining -march
 ENV CMAKE_CXX_FLAGS="$CMAKE_C_FLAGS"
 ENV CFLAGS="$CMAKE_C_FLAGS"
 
+#TODO add these guys explicitly
+#export USE_CUDNN=0;  export USE_FBGEMM=0;  export BUILD_TEST=0;  export USE_NNPACK=0;  export USE_QNNPACK=0;  export USE_DISTRIBUTED=0;  export USE_SYSTEM_NCCL=0;  export BUILD_CAFFE2_OPS=1;  export MAX_JOBS=64;  export USE_NCCL=0;  export USE_CUDA=0;  export BLAS=OpenBLAS;  export USE_MKLDNN=1;  export USE_MKLDNN_CBLAS=1;  export MKLDNN_USE_NATIVE_ARCH=1;  export BUILD_CAFFE2_MOBILE=OFF;  export ENFORCE_AVX512F=1;  export ENFORCE_OPENMP=1;  export CC=gcc;  export CXX=g++
+#BUILD_NAMEDTENSOR=OFF DISABLE_NUMA=1 PERF_WITH_AVX=1 PERF_WITH_AVX2=1 PERF_WITH_AVX512=1 USE_GFLAGS=OFF USE_GLOG=OFF VERBOSE=1 BUILD_TEST=0 NO_DISTRIBUTED=1 which i have from the pip version
+
 RUN git clone --recursive https://github.com/pytorch/pytorch.git
 RUN pip3 install ninja pyyaml cffi typing
 
