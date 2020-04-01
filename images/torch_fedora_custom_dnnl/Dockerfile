@@ -52,7 +52,7 @@ ENV PERF_WITH_AVX512=1
 ENV USE_GFLAGS=OFF
 ENV USE_GLOG=OFF
 ENV VERBOSE=1
-ENV MAX_JOBS=32
+ENV MAX_JOBS=6
 RUN sed -i -e 's/MKLDNN_LIBRARY_TYPE STATIC/MKLDNN_LIBRARY_TYPE SHARED/' ./cmake/Modules/FindMKLDNN.cmake
 
 RUN /bin/bash -l -c 'python3 setup.py bdist_wheel 2>&1 | tee build.log'
@@ -80,3 +80,4 @@ WORKDIR /workdir/
 ENV LD_LIBRARY_PATH=/workdir/mkl-dnn/build/src
 RUN MKLDNN_JIT_DUMP=1 MKLDNN_VERBOSE=2 MKLDNN_ENABLE_JIT_PROFILING=1 OMP_NUM_THREADS=32 GOMP_SPINCOUNT=0 OMP_SCHEDULE=static OPENBLAS_NUM_THREADS=1 python3 ./conv_torch.py
 
+# TODO: install benchmarker and add two running modes
