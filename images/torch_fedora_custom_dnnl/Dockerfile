@@ -78,6 +78,14 @@ RUN make -j $MAX_JOBS
 
 WORKDIR /workdir/
 ENV LD_LIBRARY_PATH=/workdir/mkl-dnn/build/src
-RUN MKLDNN_JIT_DUMP=1 MKLDNN_VERBOSE=2 MKLDNN_ENABLE_JIT_PROFILING=1 OMP_NUM_THREADS=32 GOMP_SPINCOUNT=0 OMP_SCHEDULE=static OPENBLAS_NUM_THREADS=1 python3 ./conv_torch.py
+ENV DNNL_HOME=/workdir/mkl-dnn/build/
+# RUN MKLDNN_JIT_DUMP=1 MKLDNN_VERBOSE=2 MKLDNN_ENABLE_JIT_PROFILING=1 OMP_NUM_THREADS=32 GOMP_SPINCOUNT=0 OMP_SCHEDULE=static OPENBLAS_NUM_THREADS=1 python3 ./conv_torch.py
 
 # TODO: install benchmarker and add two running modes
+RUN pip3 install jupyter
+RUN pip3 install six numpy wheel setuptools mock
+RUN pip3 install pydataset
+RUN pip3 install py-cpuinfo
+RUN pip3 install system_query[cpu,hdd,ram,swap]
+RUN dnf install -y mc
+RUN git clone https://github.com/undertherain/benchmarker.git
