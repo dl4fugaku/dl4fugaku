@@ -67,7 +67,7 @@ RUN python3 -c "import torch; print(torch.__config__.show())"
 RUN wget https://raw.githubusercontent.com/dl4fugaku/dl4fugaku/simple/simple_kernels/conv_torch.py
 RUN sed -i '/cuda/d' ./conv_torch.py
 RUN sed -i '/to(device/d' ./conv_torch.py
-RUN MKLDNN_JIT_DUMP=1 MKLDNN_VERBOSE=2 MKLDNN_ENABLE_JIT_PROFILING=1 OMP_NUM_THREADS=32 GOMP_SPINCOUNT=0 OMP_SCHEDULE=static OPENBLAS_NUM_THREADS=1 python3 ./conv_torch.py
+# RUN MKLDNN_JIT_DUMP=1 MKLDNN_VERBOSE=2 MKLDNN_ENABLE_JIT_PROFILING=1 OMP_NUM_THREADS=32 GOMP_SPINCOUNT=0 OMP_SCHEDULE=static OPENBLAS_NUM_THREADS=1 python3 ./conv_torch.py
 
 # replacing dnnl
 RUN git clone https://github.com/intel/mkl-dnn.git
@@ -89,3 +89,6 @@ RUN pip3 install py-cpuinfo
 RUN pip3 install system_query[cpu,hdd,ram,swap]
 RUN dnf install -y mc
 RUN git clone https://github.com/undertherain/benchmarker.git
+WORKDIR /workdir/benchmarker
+RUN python3 -m benchmarker --problem=conv2d --mode=inference --problem_size=128,2,224,224 --batch_size=32 --framework=dnnl
+
