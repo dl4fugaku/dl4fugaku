@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. common.sh
+
 # download_torch.sh
 git clone https://github.com/fujitsu/dnnl_aarch64.git
 cd dnnl_aarch64/

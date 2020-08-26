@@ -1,5 +1,7 @@
 #!/bin/bash
 
+. common.sh
+
 # install_toch.sh
 
 export USE_LAPACK=1
