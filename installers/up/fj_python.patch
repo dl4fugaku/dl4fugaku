@@ -1,0 +1,11 @@
+--- configure	2020-08-14 14:53:36.003838323 +0900
++++ configure	2020-08-14 14:52:09.035948237 +0900
+@@ -9522,7 +9522,7 @@
+ 	    LINKFORSHARED="-Wl,-E -Wl,+s";;
+ #	    LINKFORSHARED="-Wl,-E -Wl,+s -Wl,+b\$(BINLIBDEST)/lib-dynload";;
+ 	Linux-android*) LINKFORSHARED="-pie -Xlinker -export-dynamic";;
+-	Linux*|GNU*) LINKFORSHARED="-Xlinker -export-dynamic";;
++	Linux*|GNU*) LINKFORSHARED="-Xlinker -export-dynamic --linkfortran -SSL2 -Kopenmp -Nlibomp";;
+ 	# -u libsys_s pulls in all symbols in libsys
+ 	Darwin/*)
+ 		LINKFORSHARED="$extra_undefs -framework CoreFoundation"

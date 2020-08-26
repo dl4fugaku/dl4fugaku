@@ -1,0 +1,2153 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7d65067..864ee14 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -97,6 +97,11 @@ else ()
+     set(CPU_INTEL OFF)
+   endif ()
+ endif ()
++if (${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "aarch64")
++  set(CPU_AARCH64 ON)
++else ()
++  set(CPU_AARCH64 OFF)
++endif ()
+ 
+ 
+ # For non-supported platforms, turn USE_DISTRIBUTED off by default.
+@@ -188,9 +193,12 @@ option(USE_TENSORRT "Using Nvidia TensorRT library" OFF)
+ option(USE_XNNPACK "Use XNNPACK" ON)
+ option(USE_ZMQ "Use ZMQ" OFF)
+ option(USE_ZSTD "Use ZSTD" OFF)
++if(CPU_INTEL OR CPU_AARCH64)
++    set(MKLDNN_SUPPORT ON)
++endif()
+ cmake_dependent_option(
+-  USE_MKLDNN "Use MKLDNN. Only available on x86 and x86_64." ON
+-  "CPU_INTEL" OFF)
++    USE_MKLDNN "Use MKLDNN. Available on x86 and x86_64 and aarch64." ON
++    "MKLDNN_SUPPORT" OFF)
+ set(MKLDNN_ENABLE_CONCURRENT_EXEC ${USE_MKLDNN})
+ cmake_dependent_option(
+     USE_MKLDNN_CBLAS "Use CBLAS in MKLDNN" OFF
+diff --git a/aten/src/ATen/OpaqueTensorImpl.h b/aten/src/ATen/OpaqueTensorImpl.h
+index ab1f08b..5d97a24 100644
+--- a/aten/src/ATen/OpaqueTensorImpl.h
++++ b/aten/src/ATen/OpaqueTensorImpl.h
+@@ -38,13 +38,17 @@ struct CAFFE2_API OpaqueTensorImpl : public TensorImpl {
+   }
+ 
+   bool is_contiguous(c10::MemoryFormat memory_format=c10::MemoryFormat::Contiguous) const override {
+-    AT_ERROR("opaque tensors do not have is_contiguous");
++    return opaque_handle_->is_contiguous(memory_format);
+   }
+ 
+   int64_t stride(int64_t d) const override {
+     AT_ERROR("opaque tensors do not have strides");
+   }
+ 
++  void* data() const override {
++    return opaque_handle_->get_raw_data_ptr();
++  }
++
+   void set_size(int64_t dim, int64_t new_size) override {
+     AT_ERROR("opaque tensors do not have set_size");
+   }
+@@ -59,7 +63,7 @@ struct CAFFE2_API OpaqueTensorImpl : public TensorImpl {
+ 
+   bool has_storage() const override {
+     return false;
+-    }
++  }
+ 
+   const Storage& storage() const override{
+     AT_ERROR("opaque tensors do not have storage");
+diff --git a/aten/src/ATen/mkldnn/Runtime.cpp b/aten/src/ATen/mkldnn/Runtime.cpp
+deleted file mode 100644
+index b8a9834..0000000
+--- a/aten/src/ATen/mkldnn/Runtime.cpp
++++ /dev/null
+@@ -1,5 +0,0 @@
+-#include <ATen/mkldnn/Runtime.h>
+-
+-namespace at { namespace native {
+-
+-}}  // namespace at::native
+diff --git a/aten/src/ATen/mkldnn/Runtime.h b/aten/src/ATen/mkldnn/Runtime.h
+deleted file mode 100644
+index b27b4b5..0000000
+--- a/aten/src/ATen/mkldnn/Runtime.h
++++ /dev/null
+@@ -1,49 +0,0 @@
+-#pragma once
+-
+-#include <mkldnn.hpp>
+-
+-using namespace mkldnn;
+-
+-namespace at { namespace native {
+-
+-// CpuEngine singleton
+-struct CpuEngine {
+-  static CpuEngine& Instance() {
+-    static CpuEngine myInstance;
+-    return myInstance;
+-  }
+-  engine& get_engine() {
+-    return _cpu_engine;
+-  }
+-  CpuEngine(CpuEngine const&) = delete;
+-  CpuEngine& operator=(CpuEngine const&) = delete;
+-
+-protected:
+-  CpuEngine():_cpu_engine(mkldnn::engine::cpu, 0) {}
+-  ~CpuEngine() {}
+-
+-private:
+-  engine _cpu_engine;
+-};
+-
+-// Stream singleton
+-struct Stream {
+-  static Stream& Instance() {
+-    static thread_local Stream myInstance;
+-    return myInstance;
+-  };
+-  stream& get_stream() {
+-    return _cpu_stream;
+-  }
+-  Stream(Stream const&) = delete;
+-  Stream& operator=(Stream const&) = delete;
+-
+-protected:
+-  Stream():_cpu_stream(mkldnn::stream::kind::eager) {}
+-  ~Stream() {}
+-
+-private:
+-  stream _cpu_stream;
+-};
+-
+-}}  // namespace at::native
+diff --git a/aten/src/ATen/native/Activation.cpp b/aten/src/ATen/native/Activation.cpp
+index 2ff57b7..3c710f8 100644
+--- a/aten/src/ATen/native/Activation.cpp
++++ b/aten/src/ATen/native/Activation.cpp
+@@ -331,6 +331,9 @@ Tensor& threshold_out(Tensor& result, const Tensor& self, Scalar threshold, Scal
+ }
+ 
+ Tensor threshold_backward(const Tensor& grad, const Tensor& self, Scalar threshold) {
++  if (grad.is_mkldnn()) {
++    return at::mkldnn_relu_backward(grad, self);
++  }
+   return threshold_out(nullopt, self, threshold, 0, grad);
+ }
+ 
+diff --git a/aten/src/ATen/native/BinaryOps.cpp b/aten/src/ATen/native/BinaryOps.cpp
+index 74a091d..08950e1 100644
+--- a/aten/src/ATen/native/BinaryOps.cpp
++++ b/aten/src/ATen/native/BinaryOps.cpp
+@@ -38,6 +38,9 @@ DEFINE_DISPATCH(fmod_stub);
+ DEFINE_DISPATCH(fmod_scalar_stub);
+ 
+ Tensor& add_out(Tensor& result, const Tensor& self, const Tensor& other, Scalar alpha) {
++  if (self.is_mkldnn()) {
++    return native::mkldnn_add_out(result, self, other, alpha);
++  }
+   auto iter = TensorIterator::binary_op(result, self, other,
+     /*check_mem_overlap=*/true);
+   alpha_check(iter.dtype(), alpha);
+@@ -173,6 +176,9 @@ Tensor& floor_divide_(Tensor& self, const Tensor& other) {
+ }
+ 
+ Tensor& mul_out(Tensor& result, const Tensor& self, const Tensor& other) {
++  if (self.is_mkldnn()) {
++    return native::mkldnn_mul_out(result, self, other);
++  }
+   auto iter = TensorIterator::binary_op(result, self, other,
+     /*check_mem_overlap=*/true);
+   mul_stub(iter.device_type(), iter);
+diff --git a/aten/src/ATen/native/Convolution.cpp b/aten/src/ATen/native/Convolution.cpp
+index ce76439..bb19bd9 100644
+--- a/aten/src/ATen/native/Convolution.cpp
++++ b/aten/src/ATen/native/Convolution.cpp
+@@ -691,10 +691,12 @@ at::Tensor _convolution(
+     }
+   } else if (params.use_mkldnn(input)) {
+ #if AT_MKLDNN_ENABLED()
+-    TORCH_CHECK(input.options().type_equal(weight.options()),
++    TORCH_CHECK(input.options().type_equal(weight.options())
++		|| (input.is_mkldnn() && weight.type().backend() == at::Backend::CPU && weight.scalar_type() == kFloat),
+              "Input type (", input.toString(), ") and weight type (", weight.toString(),
+              ") should be the same");
+-    TORCH_CHECK(!bias.defined() || (input.options().type_equal(bias.options())),
++    TORCH_CHECK(!bias.defined() || (input.options().type_equal(bias.options()))
++		|| (input.is_mkldnn() && bias.type().backend() == at::Backend::CPU && bias.scalar_type() == kFloat),
+              "Input type (", input.toString(), ") and bias type (", bias.toString(),
+              ") should be the same");
+     if (!input_is_mkldnn) {
+diff --git a/aten/src/ATen/native/Copy.cpp b/aten/src/ATen/native/Copy.cpp
+index 694b7fe..3d953a1 100644
+--- a/aten/src/ATen/native/Copy.cpp
++++ b/aten/src/ATen/native/Copy.cpp
+@@ -102,6 +102,13 @@ static Tensor & copy_impl(Tensor & self, const Tensor & src, bool non_blocking)
+     return self;
+   }
+ 
++  if (self.is_mkldnn() && src.is_mkldnn()) {
++    return at::copy_opaque_to_opaque_(self, src, non_blocking);
++  } else if (self.is_mkldnn() || src.is_mkldnn()) {
++    AT_ERROR("copy_() between dense and opaque Tensors is not implemented! Found self type = ",
++             self.type(), " and src type = ", src.type());
++  }
++
+   // Re-dispatch copies when src device not implemented here (e.g. XLA).
+   // This includes: cpu_tensor.copy_(xla_tensor) which
+   // calls xla_tensor._copy_from(cpu_tensor)
+diff --git a/aten/src/ATen/native/mkldnn/Conv.cpp b/aten/src/ATen/native/mkldnn/Conv.cpp
+index 7750097..c0627dd 100644
+--- a/aten/src/ATen/native/mkldnn/Conv.cpp
++++ b/aten/src/ATen/native/mkldnn/Conv.cpp
+@@ -6,71 +6,53 @@
+ 
+ namespace at { namespace native {
+ 
+-at::Tensor mkldnn_convolution(
+-    const at::Tensor& input, const at::Tensor& weight, const at::Tensor& bias,
++Tensor mkldnn_convolution(
++    const Tensor& input, const Tensor& weight, const Tensor& bias,
+     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups) {
+-  AT_ERROR("mkldnn_convolution_forward: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_convolution_forward: ATen not compiled with MKLDNN support");
+ }
+ 
+-at::Tensor mkldnn_convolution_backward_input(
+-    IntArrayRef input_size, const at::Tensor& grad_output, const at::Tensor& weight,
++Tensor mkldnn_convolution_backward_input(
++    IntArrayRef input_size, const Tensor& grad_output, const Tensor& weight,
+     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, bool bias_defined) {
+-  AT_ERROR("mkldnn_convolution_backward_input: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_convolution_backward_input: ATen not compiled with MKLDNN support");
+ }
+ 
+-std::tuple<at::Tensor,at::Tensor> mkldnn_convolution_backward_weights(
+-    IntArrayRef weight_size, const at::Tensor& grad_output, const at::Tensor& input,
++std::tuple<Tensor,Tensor> mkldnn_convolution_backward_weights(
++    const Tensor& weight, const Tensor& grad_output, const Tensor& input,
+     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, bool bias_defined) {
+-  AT_ERROR("mkldnn_convolution_backward_weights: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_convolution_backward_weights: ATen not compiled with MKLDNN support");
+ }
+ 
+-std::tuple<at::Tensor,at::Tensor,at::Tensor> mkldnn_convolution_backward(
+-    const at::Tensor& input, const at::Tensor& grad_output_t, const at::Tensor& weight,
++std::tuple<Tensor,Tensor,Tensor> mkldnn_convolution_backward(
++    const Tensor& input, const Tensor& grad_output_t, const Tensor& weight,
+     IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, std::array<bool,3> output_mask) {
+-  AT_ERROR("mkldnn_convolution_backward: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_convolution_backward: ATen not compiled with MKLDNN support");
+ }
+ 
+ }}
+ 
+ #else // AT_MKLDNN_EBABLED
+ 
+-#include <ATen/mkldnn/Runtime.h>
+ #include <ATen/native/mkldnn/MKLDNNCommon.h>
+ #include <ATen/native/mkldnn/Utils.h>
+ #include <ATen/native/ConvUtils.h>
+ 
+-using namespace mkldnn;
+-
+-namespace {
+-// Helper function for getting an ideep tensor out of an aten Tensor.
+-// Note in case the aten Tensor is a dense tensor, the returned ideep
+-// tensor is just a view of the storage of the aten dense tensor, so
+-// caller needs to make sure the aten dense tensor's lifetime is
+-// longer than the ideep tensor.
+-inline ideep::tensor get_mkldnn_tensor(const at::Tensor& tensor) {
+-  if (tensor.is_mkldnn()) {
+-    return at::native::itensor_from_mkldnn(tensor);
+-  } else {
+-    return at::native::itensor_view_from_dense(tensor);
+-  }
+-}
+-}
+-
+ namespace at { namespace native {
+ 
+ ideep::tensor _mkldnn_conv2d(
+     const ideep::tensor& x,
+     const ideep::tensor& w,
+     const c10::optional<ideep::tensor>& b,
+-    at::IntArrayRef padding,
+-    at::IntArrayRef stride,
+-    at::IntArrayRef dilation,
++    IntArrayRef padding,
++    IntArrayRef stride,
++    IntArrayRef dilation,
+     int64_t groups) {
+   std::vector<int64_t> kernel_size(x.ndims());
+   // mkldnn conv2d weights could have been re-ordered to 5d by
+   // mkldnn_reorder_conv2d_weight
+   if (w.ndims() == x.ndims() + 1) {
+-    AT_ASSERTM(
++    TORCH_CHECK(
+         groups > 1,
+         "Only group _mkldnn_conv2d weights could have been reordered to 5d");
+     kernel_size[0] = w.get_dim(0) * w.get_dim(1);
+@@ -119,19 +101,86 @@ ideep::tensor _mkldnn_conv2d(
+   return y;
+ }
+ 
+-at::Tensor mkldnn_convolution(
+-    const at::Tensor& input,
+-    const at::Tensor& weight,
+-    const at::Tensor& bias,
++ideep::tensor _mkldnn_conv2d_backward_input(
++    IntArrayRef input_sizes,
++    const ideep::tensor& grady,
++    const ideep::tensor& w,
++    IntArrayRef padding,
++    IntArrayRef stride,
++    IntArrayRef dilation,
++    int64_t groups) {
++
++  ideep::tensor gradx;
++  ideep::convolution_backward_data::compute<AllocForMKLDNN>(
++      grady,
++      w,
++      {input_sizes.cbegin(), input_sizes.cend()},
++      gradx,
++      {stride.begin(), stride.end()},
++      {dilation.begin(), dilation.end()},
++      {padding.begin(), padding.end()},
++      {padding.begin(), padding.end()},
++      groups,
++      ideep::algorithm::convolution_direct);
++
++  return gradx;
++}
++
++std::tuple<ideep::tensor, ideep::tensor> _mkldnn_conv2d_backward_weights(
++    IntArrayRef weight_sizes,
++    const ideep::tensor& grady,
++    const ideep::tensor& x,
++    IntArrayRef padding,
++    IntArrayRef stride,
++    IntArrayRef dilation,
++    int64_t groups,
++    bool bias_defined) {
++
++  ideep::tensor gradw, gradb;
++  if (bias_defined) {
++    ideep::convolution_backward_weights::compute<AllocForMKLDNN>(
++        x,
++        grady,
++        {weight_sizes.cbegin(), weight_sizes.cend()},
++        gradw,
++        gradb,
++        {stride.begin(), stride.end()},
++        {dilation.begin(), dilation.end()},
++        {padding.begin(), padding.end()},
++        {padding.begin(), padding.end()},
++        groups,
++        ideep::algorithm::convolution_direct);
++  } else {
++    ideep::convolution_backward_weights::compute<AllocForMKLDNN>(
++        x,
++        grady,
++        {weight_sizes.cbegin(), weight_sizes.cend()},
++        gradw,
++        {stride.begin(), stride.end()},
++        {dilation.begin(), dilation.end()},
++        {padding.begin(), padding.end()},
++        {padding.begin(), padding.end()},
++        groups,
++        ideep::algorithm::convolution_direct);
++  }
++
++  return std::tuple<ideep::tensor, ideep::tensor>{gradw, gradb};
++}
++
++Tensor mkldnn_convolution(
++    const Tensor& input,
++    const Tensor& weight,
++    const Tensor& bias,
+     IntArrayRef padding,
+     IntArrayRef stride,
+     IntArrayRef dilation,
+     int64_t groups) {
+-  const ideep::tensor mkldnn_input = get_mkldnn_tensor(input);
+-  const ideep::tensor mkldnn_weight = get_mkldnn_tensor(weight);
++
++  const ideep::tensor mkldnn_input = itensor_from_tensor(input);
++  const ideep::tensor mkldnn_weight = itensor_from_tensor(weight);
+   c10::optional<ideep::tensor> mkldnn_bias{c10::nullopt};
+   if (bias.defined()) {
+-    mkldnn_bias = get_mkldnn_tensor(bias);
++    mkldnn_bias = itensor_from_tensor(bias);
+   }
+ 
+   ideep::tensor mkldnn_output = _mkldnn_conv2d(
+@@ -152,264 +201,71 @@ at::Tensor mkldnn_convolution(
+ }
+ 
+ Tensor mkldnn_convolution_backward_input(
+-    IntArrayRef input_size, const at::Tensor& grad_output, const at::Tensor& weight,
+-    IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, bool bias_defined)
+-{
+-  auto grad_input = at::empty(input_size, grad_output.options());
+-
+-  auto cpu_engine = CpuEngine::Instance().get_engine();
+-
+-  int32_t g = groups;
+-
+-  int32_t n = grad_input.size(0);
+-  int32_t ic = grad_input.size(1);
+-  int32_t ih = grad_input.size(2);
+-  int32_t iw = grad_input.size(3);
+-
+-  int32_t oc = grad_output.size(1);
+-  int32_t oh = grad_output.size(2);
+-  int32_t ow = grad_output.size(3);
+-
+-  int32_t kh = weight.size(2);
+-  int32_t kw = weight.size(3);
+-
+-  int32_t sh = stride[0];
+-  int32_t sw = stride[1];
+-  int32_t ph = padding[0];
+-  int32_t pw = padding[1];
+-
+-  auto data_t = memory::data_type::f32;
+-  auto format_any = memory::format::any;
+-  auto format_nchw = memory::format::nchw;
+-  auto format_weight = (g!= 1) ? memory::format::goihw : memory::format::oihw;
+-
+-  memory::dims input_tz = {n, ic, ih, iw};
+-  memory::dims weight_tz = (g!= 1) ? memory::dims{g, oc/g, ic/g, kh, kw} : memory::dims{oc, ic, kh, kw};
+-  memory::dims bias_tz = {oc};
+-  memory::dims output_tz = {n, oc, oh, ow};
+-  memory::dims _stride = {sh, sw};
+-  memory::dims _padding = {ph, pw};
+-
+-  auto input_md = memory::desc({input_tz}, data_t, format_any);
+-  auto weight_md = memory::desc({weight_tz}, data_t, format_any);
+-  auto bias_md = memory::desc({bias_tz}, data_t, format_any);
+-  auto output_md = memory::desc({output_tz}, data_t, format_any);
+-
+-  // need to re-create conv_forward_pd to feed conv_backward_data_pd
+-  std::shared_ptr<convolution_forward::desc> conv_forward_desc;
+-  if (bias_defined) {
+-    conv_forward_desc.reset(new convolution_forward::desc(prop_kind::forward,
+-      convolution_direct, input_md, weight_md, bias_md, output_md,
+-      _stride, _padding, _padding, padding_kind::zero));
+-  } else {
+-    conv_forward_desc.reset(new convolution_forward::desc(prop_kind::forward,
+-      convolution_direct, input_md, weight_md, output_md,
+-      _stride, _padding, _padding, padding_kind::zero));
+-  }
+-
+-  std::shared_ptr<convolution_forward::primitive_desc> conv_forward_pd;
+-  conv_forward_pd.reset(new convolution_forward::primitive_desc(
+-    *conv_forward_desc, cpu_engine));
+-
+-  std::shared_ptr<convolution_backward_data::desc> conv_backward_data_desc;
+-  conv_backward_data_desc.reset(new convolution_backward_data::desc(
+-    convolution_direct, input_md, weight_md, output_md,
+-    _stride, _padding, _padding, padding_kind::zero));
+-
+-  std::shared_ptr<convolution_backward_data::primitive_desc> conv_backward_data_pd;
+-  conv_backward_data_pd.reset(new convolution_backward_data::primitive_desc(
+-    *conv_backward_data_desc, cpu_engine, *conv_forward_pd));
+-
+-  auto grad_output_usr_memory = memory({{{output_tz}, data_t, format_nchw}, cpu_engine},
+-    grad_output.data_ptr());
+-  auto weight_usr_memory = memory({{{weight_tz}, data_t, format_weight}, cpu_engine},
+-    weight.data_ptr());
+-  auto grad_input_usr_memory = memory({{{input_tz}, data_t, format_nchw}, cpu_engine},
+-    grad_input.data_ptr());
+-
+-  std::vector<primitive> net;
+-
+-  auto grad_output_pd = conv_backward_data_pd->diff_dst_primitive_desc();
+-  auto grad_output_memory = grad_output_usr_memory;
+-  if (grad_output_usr_memory.get_primitive_desc() != memory::primitive_desc(grad_output_pd)) {
+-    grad_output_memory = memory(grad_output_pd);
+-    net.push_back(reorder(grad_output_usr_memory, grad_output_memory));
+-  }
+-
+-  auto weight_pd = conv_backward_data_pd->weights_primitive_desc();
+-  auto weight_memory = weight_usr_memory;
+-  if (weight_usr_memory.get_primitive_desc() != memory::primitive_desc(weight_pd)) {
+-    weight_memory = memory(weight_pd);
+-    net.push_back(reorder(weight_usr_memory, weight_memory));
+-  }
+-
+-  auto grad_input_pd = conv_backward_data_pd->diff_src_primitive_desc();
+-  auto grad_input_memory = grad_input_usr_memory;
+-  if (grad_input_memory.get_primitive_desc() != memory::primitive_desc(grad_input_pd)) {
+-    grad_input_memory = memory(grad_input_pd);
+-  }
+-
+-  std::shared_ptr<convolution_backward_data> conv_backward_data;
+-  conv_backward_data.reset(new convolution_backward_data(*conv_backward_data_pd,
+-    grad_output_memory, weight_memory, grad_input_memory));
+-  net.push_back(*conv_backward_data);
+-
+-  if (grad_input_memory != grad_input_usr_memory) {
+-    net.push_back(reorder(grad_input_memory, grad_input_usr_memory));
+-  }
+-
+-  Stream::Instance().get_stream().submit(net);
+-
+-  return grad_input;
+-}
+-
+-std::tuple<at::Tensor, at::Tensor> mkldnn_convolution_backward_weights(
+-    IntArrayRef weight_size, const at::Tensor& grad_output, const at::Tensor& input,
+-    IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, bool bias_defined)
+-{
+-  auto grad_weight = at::empty(weight_size, grad_output.options());
+-
+-  Tensor grad_bias;
+-  if (bias_defined) {
+-    grad_bias = at::empty({grad_output.size(1)}, grad_output.options());
+-  }
+-
+-  auto cpu_engine = CpuEngine::Instance().get_engine();
+-
+-  int32_t g = groups;
+-
+-  int32_t n = input.size(0);
+-  int32_t ic = input.size(1);
+-  int32_t ih = input.size(2);
+-  int32_t iw = input.size(3);
+-
+-  int32_t oc = grad_output.size(1);
+-  int32_t oh = grad_output.size(2);
+-  int32_t ow = grad_output.size(3);
+-
+-  int32_t kh = grad_weight.size(2);
+-  int32_t kw = grad_weight.size(3);
+-
+-  int32_t sh = stride[0];
+-  int32_t sw = stride[1];
+-  int32_t ph = padding[0];
+-  int32_t pw = padding[1];
+-
+-  auto data_t = memory::data_type::f32;
+-  auto format_any = memory::format::any;
+-  auto format_nchw = memory::format::nchw;
+-  auto format_weight = (g!= 1) ? memory::format::goihw : memory::format::oihw;
+-  auto format_x = memory::format::x;
+-
+-  memory::dims input_tz = {n, ic, ih, iw};
+-  memory::dims weight_tz = (g!= 1) ? memory::dims{g, oc/g, ic/g, kh, kw} : memory::dims{oc, ic, kh, kw};
+-  memory::dims bias_tz = {oc};
+-  memory::dims output_tz = {n, oc, oh, ow};
+-  memory::dims _stride = {sh, sw};
+-  memory::dims _padding = {ph, pw};
+-
+-  memory::desc input_md({input_tz}, data_t, format_any);
+-  memory::desc weight_md({weight_tz}, data_t, format_any);
+-  memory::desc bias_md({bias_tz}, data_t, format_any);
+-  memory::desc output_md({output_tz}, data_t, format_any);
++    IntArrayRef input_size, const Tensor& grad_output, const Tensor& weight,
++    IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, bool bias_defined) {
+ 
+-  // need to re-create conv_forward_pd to feed conv_backward_weight_pd
+-  std::shared_ptr<convolution_forward::desc> conv_forward_desc;
+-  if (bias_defined) {
+-    conv_forward_desc.reset(new convolution_forward::desc(prop_kind::forward,
+-      convolution_direct, input_md, weight_md, bias_md, output_md,
+-      _stride, _padding, _padding, padding_kind::zero));
+-  } else {
+-    conv_forward_desc.reset(new convolution_forward::desc(prop_kind::forward,
+-      convolution_direct, input_md, weight_md, output_md,
+-      _stride, _padding, _padding, padding_kind::zero));
+-  }
++  const ideep::tensor mkldnn_grad_output = itensor_from_tensor(grad_output);
++  const ideep::tensor mkldnn_weight = itensor_from_tensor(weight);
+ 
+-  std::shared_ptr<convolution_forward::primitive_desc> conv_forward_pd;
+-  conv_forward_pd.reset(new convolution_forward::primitive_desc(
+-    *conv_forward_desc, cpu_engine));
++  ideep::tensor mkldnn_grad_input = _mkldnn_conv2d_backward_input(
++      input_size,
++      mkldnn_grad_output,
++      mkldnn_weight,
++      padding,
++      stride,
++      dilation,
++      groups);
+ 
+-  std::shared_ptr<convolution_backward_weights::desc> conv_backward_weight_desc;
+-  if (bias_defined) {
+-    conv_backward_weight_desc.reset(new convolution_backward_weights::desc(
+-      convolution_direct, input_md, weight_md, bias_md, output_md,
+-      _stride, _padding, _padding, padding_kind::zero));
++  if (grad_output.is_mkldnn()) {
++    return new_with_itensor_mkldnn(std::move(mkldnn_grad_input), grad_output.options());
+   } else {
+-    conv_backward_weight_desc.reset(new convolution_backward_weights::desc(
+-      convolution_direct, input_md, weight_md, output_md,
+-      _stride, _padding, _padding, padding_kind::zero));
+-  }
+-
+-  std::shared_ptr<convolution_backward_weights::primitive_desc> conv_backward_weight_pd;
+-  conv_backward_weight_pd.reset(new convolution_backward_weights::primitive_desc(
+-    *conv_backward_weight_desc, cpu_engine, *conv_forward_pd));
+-
+-  auto input_usr_memory = memory({{{input_tz}, data_t, format_nchw}, cpu_engine},
+-    input.data_ptr());
+-  auto grad_output_usr_memory = memory({{{output_tz}, data_t, format_nchw}, cpu_engine},
+-    grad_output.data_ptr());
+-  auto grad_weight_usr_memory = memory({{{weight_tz}, data_t, format_weight}, cpu_engine},
+-    grad_weight.data_ptr());
+-  std::shared_ptr<memory> grad_bias_memory;
+-
+-  std::vector<primitive> net;
+-
+-  auto input_pd = conv_backward_weight_pd->src_primitive_desc();
+-  auto input_memory = input_usr_memory;
+-  if (input_usr_memory.get_primitive_desc() != memory::primitive_desc(input_pd)) {
+-    input_memory = memory(input_pd);
+-    net.push_back(reorder(input_usr_memory, input_memory));
++    return mkldnn_to_dense(
++        new_with_itensor_mkldnn(std::move(mkldnn_grad_input), grad_output.options()));
+   }
++}
+ 
+-  auto grad_output_pd = conv_backward_weight_pd->diff_dst_primitive_desc();
+-  auto grad_output_memory = grad_output_usr_memory;
+-  if (grad_output_usr_memory.get_primitive_desc() != memory::primitive_desc(grad_output_pd)) {
+-    grad_output_memory = memory(grad_output_pd);
+-    net.push_back(reorder(grad_output_usr_memory, grad_output_memory));
+-  }
++std::tuple<Tensor,Tensor> mkldnn_convolution_backward_weights(
++    const Tensor& weight, const Tensor& grad_output, const Tensor& input, IntArrayRef padding,
++    IntArrayRef stride, IntArrayRef dilation, int64_t groups, bool bias_defined) {
+ 
+-  auto grad_weight_pd = conv_backward_weight_pd->diff_weights_primitive_desc();
+-  auto grad_weight_memory = grad_weight_usr_memory;
+-  if (grad_weight_usr_memory.get_primitive_desc() != memory::primitive_desc(grad_weight_pd)) {
+-    grad_weight_memory = memory(grad_weight_pd);
+-  }
++  const ideep::tensor mkldnn_grad_output = itensor_from_tensor(grad_output);
++  const ideep::tensor mkldnn_input = itensor_from_tensor(input);
+ 
+-  std::shared_ptr<convolution_backward_weights> conv_backward_weight;
+-  if (bias_defined) {
+-    grad_bias_memory.reset(new memory({{{bias_tz}, data_t, format_x}, cpu_engine},
+-      grad_bias.data_ptr()));
+-    conv_backward_weight.reset(new convolution_backward_weights(*conv_backward_weight_pd,
+-      input_memory, grad_output_memory, grad_weight_memory, *grad_bias_memory));
++  ideep::tensor mkldnn_grad_weight, mkldnn_grad_bias;
++  std::tie(mkldnn_grad_weight, mkldnn_grad_bias) =_mkldnn_conv2d_backward_weights(
++      weight.sizes(),
++      mkldnn_grad_output,
++      mkldnn_input,
++      padding,
++      stride,
++      dilation,
++      groups,
++      bias_defined);
++  if (weight.is_mkldnn()) {
++    return std::tuple<Tensor, Tensor>{
++        new_with_itensor_mkldnn(std::move(mkldnn_grad_weight), grad_output.options()),
++        new_with_itensor_mkldnn(std::move(mkldnn_grad_bias), grad_output.options())};
+   } else {
+-    conv_backward_weight.reset(new convolution_backward_weights(*conv_backward_weight_pd,
+-      input_memory, grad_output_memory, grad_weight_memory));
++    return std::tuple<Tensor, Tensor>{
++        mkldnn_to_dense(new_with_itensor_mkldnn(std::move(mkldnn_grad_weight), grad_output.options())),
++        mkldnn_to_dense(new_with_itensor_mkldnn(std::move(mkldnn_grad_bias), grad_output.options()))};
+   }
+-
+-  net.push_back(*conv_backward_weight);
+-
+-  if (grad_weight_memory != grad_weight_usr_memory) {
+-    net.push_back(reorder(grad_weight_memory, grad_weight_usr_memory));
+-  }
+-
+-  Stream::Instance().get_stream().submit(net);
+-
+-  return std::tuple<at::Tensor, at::Tensor>{grad_weight, grad_bias};
+ }
+ 
+-std::tuple<at::Tensor,at::Tensor,at::Tensor> mkldnn_convolution_backward(
+-    const at::Tensor& input, const at::Tensor& grad_output_t, const at::Tensor& weight,
+-    IntArrayRef padding, IntArrayRef stride, IntArrayRef dilation, int64_t groups, std::array<bool,3> output_mask)
+-{
+-  Tensor grad_output = grad_output_t.contiguous();
++std::tuple<Tensor,Tensor,Tensor> mkldnn_convolution_backward(
++    const Tensor& input, const Tensor& grad_output_t, const Tensor& weight, IntArrayRef padding,
++    IntArrayRef stride, IntArrayRef dilation, int64_t groups, std::array<bool,3> output_mask) {
++
++  Tensor grad_output = grad_output_t.is_mkldnn() ? grad_output_t : grad_output_t.contiguous();
+ 
+   Tensor grad_input, grad_weight, grad_bias;
+   if (output_mask[0]) {
+     grad_input = at::mkldnn_convolution_backward_input(
+-      input.sizes(), grad_output, weight, padding, stride, dilation, groups, output_mask[2]);
++        input.sizes(), grad_output, weight, padding, stride, dilation, groups, output_mask[2]);
+   }
+   if (output_mask[1] || output_mask[2]) {
+     std::tie(grad_weight, grad_bias) = at::mkldnn_convolution_backward_weights(
+-      weight.sizes(), grad_output, input, padding, stride, dilation, groups, output_mask[2]);
++        weight, grad_output, input, padding, stride, dilation, groups, output_mask[2]);
+   }
+ 
+   return std::tuple<Tensor, Tensor, Tensor>{grad_input, grad_weight, grad_bias};
+diff --git a/aten/src/ATen/native/mkldnn/Copy.cpp b/aten/src/ATen/native/mkldnn/Copy.cpp
+new file mode 100644
+index 0000000..640849c
+--- /dev/null
++++ b/aten/src/ATen/native/mkldnn/Copy.cpp
+@@ -0,0 +1,62 @@
++/*
++ Copyright (c) 2020, FUJITSU LIMITED
++ All rights reserved.
++
++ Redistribution and use in source and binary forms, with or without
++ modification, are permitted provided that the following conditions are met:
++ * Redistributions of source code must retain the above copyright notice, 
++   this list of conditions and the following disclaimer.
++ * Redistributions in binary form must reproduce the above copyright notice, 
++   this list of conditions and the following disclaimer in the documentation 
++   and/or other materials provided with the distribution.
++ * Neither the name of the <organization> nor the names of its contributors 
++   may be used to endorse or promote products derived from this software 
++   without specific prior written permission.
++
++ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
++ ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
++ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
++ DISCLAIMED. IN NO EVENT SHALL <COPYRIGHT HOLDER> BE LIABLE FOR ANY
++ DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
++ (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
++ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
++ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
++ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++==============================================================================*/
++
++#include <ATen/ATen.h>
++#include <ATen/Config.h>
++#include <ATen/NativeFunctions.h>
++
++#if !AT_MKLDNN_ENABLED()
++
++namespace at {
++namespace native {
++
++Tensor& copy_mkldnn_(Tensor& self, const Tensor& src, bool non_blocking) {
++  AT_ERROR("copy_mkldnn_: ATen not compiled with MKLDNN support");
++}
++
++} // namespace native
++} // namespace at
++
++#else // AT_MKLDNN_EBABLED
++
++#include <ATen/native/mkldnn/MKLDNNCommon.h>
++
++namespace at {
++namespace native {
++
++Tensor& copy_mkldnn_(Tensor& self, const Tensor& src, bool non_blocking) {
++  TORCH_CHECK(self.sizes() == src.sizes(), "copy_mkldnn_: only support same size tensor.");
++  ideep::tensor& x = itensor_from_mkldnn(src);
++  ideep::tensor& y = itensor_from_mkldnn(self);
++  ideep::direct_copy::compute<AllocForMKLDNN>(x, y);
++  return self;
++}
++
++} // namespace native
++} // namespace at
++
++#endif // AT_MKLDNN_EBABLED
+diff --git a/aten/src/ATen/native/mkldnn/Linear.cpp b/aten/src/ATen/native/mkldnn/Linear.cpp
+index 982d55a..ad5c6f6 100644
+--- a/aten/src/ATen/native/mkldnn/Linear.cpp
++++ b/aten/src/ATen/native/mkldnn/Linear.cpp
+@@ -11,7 +11,23 @@ Tensor mkldnn_linear(
+     const Tensor& self,
+     const Tensor& weight,
+     const Tensor& bias) {
+-  AT_ERROR("mkldnn_linear: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_linear: ATen not compiled with MKLDNN support");
++}
++
++Tensor mkldnn_linear_backward_input(
++    IntArrayRef input_size, const Tensor& grad_output, const Tensor& weight) {
++  TORCH_CHECK(false, "mkldnn_linear_backward_input: ATen not compiled with MKLDNN support");
++}
++
++std::tuple<Tensor, Tensor> mkldnn_linear_backward_weights(
++    const Tensor& grad_output, const Tensor& input, const Tensor& weight, bool bias_defined) {
++  TORCH_CHECK(false, "mkldnn_linear_backward_weights: ATen not compiled with MKLDNN support");
++}
++
++std::tuple<Tensor, Tensor, Tensor> mkldnn_linear_backward(
++    const Tensor& input, const Tensor& grad_output_t,
++    const Tensor& weight, std::array<bool,3> output_mask) {
++  TORCH_CHECK(false, "mkldnn_linear_backward: ATen not compiled with MKLDNN support");
+ }
+ 
+ } // namespace native
+@@ -32,17 +48,15 @@ Tensor mkldnn_linear(
+       "mkldnn_linear: input needs to has dim at least 2, input dim ", self.dim());
+   TORCH_CHECK(self.is_mkldnn(),
+       "mkldnn_linear: input needs to be mkldnn layout");
+-  TORCH_CHECK(weight.is_mkldnn() && bias.is_mkldnn(),
+-      "mkldnn_linear: weight and bias need to be mkldnn layout");
+ 
+   // reshape first if input dim is greater than 2 and the reshape will cost a memory copy.
+   auto self_reshaped = self.dim() > 2 ? self.reshape({-1, self.size(self.dim() - 1)}) : self;
+   const ideep::tensor x = itensor_from_mkldnn(self_reshaped);
+-  const ideep::tensor w = itensor_from_mkldnn(weight);
++  const ideep::tensor w = itensor_from_tensor(weight);
+ 
+   ideep::tensor y;
+   if (bias.defined()) {
+-    const ideep::tensor b = itensor_from_mkldnn(bias);
++    const ideep::tensor b = itensor_from_tensor(bias);
+     ideep::inner_product_forward::compute(x, w, b, y);
+   } else {
+     ideep::inner_product_forward::compute(x, w, y);
+@@ -58,6 +72,65 @@ Tensor mkldnn_linear(
+   return new_with_itensor_mkldnn(std::move(y), self.options());
+ }
+ 
++Tensor mkldnn_linear_backward_input(
++    IntArrayRef input_size, const Tensor& grad_output, const Tensor& weight){
++  auto grad_output_reshaped = grad_output.dim() > 2 ?
++    grad_output.reshape({-1, grad_output.size(grad_output.dim() - 1)}) : grad_output;
++  ideep::tensor& grady = itensor_from_mkldnn(grad_output_reshaped);
++  const ideep::tensor w = itensor_from_tensor(weight);
++
++  std::vector<int64_t> input_reshaped_size;
++  input_reshaped_size.push_back(grad_output_reshaped.size(0));
++  input_reshaped_size.push_back(weight.size(1));
++
++  ideep::tensor gradx;
++  ideep::inner_product_backward_data::compute(
++    grady, w, {input_reshaped_size.begin(), input_reshaped_size.end()}, gradx);
++
++  if (input_size.size() > 2) {
++    return new_with_itensor_mkldnn(std::move(gradx), grad_output.options()).reshape(input_size);
++  }
++  return new_with_itensor_mkldnn(std::move(gradx), grad_output.options());
++}
++
++std::tuple<Tensor, Tensor> mkldnn_linear_backward_weights(
++    const Tensor& grad_output, const Tensor& input, const Tensor& weight, bool bias_defined) {
++  auto grad_output_reshaped = grad_output.dim() > 2 ?
++    grad_output.reshape({-1, grad_output.size(grad_output.dim() - 1)}) : grad_output;
++  auto input_reshaped = input.dim() > 2 ? input.reshape({-1, input.size(input.dim() - 1)}) : input;
++
++  ideep::tensor& grady = itensor_from_mkldnn(grad_output_reshaped);
++  ideep::tensor& x = itensor_from_mkldnn(input_reshaped);
++  ideep::tensor gradw, gradb;
++  if (bias_defined) {
++    ideep::inner_product_backward_weights::compute(x, grady, gradw, gradb);
++  } else {
++    ideep::inner_product_backward_weights::compute(x, grady, gradw);
++  }
++
++  if (weight.is_mkldnn()) {
++    return std::tuple<Tensor, Tensor>{new_with_itensor_mkldnn(std::move(gradw), grad_output.options()),
++      new_with_itensor_mkldnn(std::move(gradb), grad_output.options())};
++  } else {
++    return std::tuple<Tensor, Tensor>{
++      mkldnn_to_dense(new_with_itensor_mkldnn(std::move(gradw), grad_output.options())),
++      mkldnn_to_dense(new_with_itensor_mkldnn(std::move(gradb), grad_output.options()))};
++  }
++}
++
++std::tuple<Tensor, Tensor, Tensor> mkldnn_linear_backward(
++    const Tensor& input, const Tensor& grad_output,
++    const Tensor& weight, std::array<bool,3> output_mask) {
++  Tensor grad_input, grad_weight, grad_bias;
++  if (output_mask[0]) {
++    grad_input = at::mkldnn_linear_backward_input(input.sizes(), grad_output, weight);
++  }
++  if (output_mask[1] || output_mask[2]) {
++    std::tie(grad_weight, grad_bias) = at::mkldnn_linear_backward_weights(grad_output, input, weight, output_mask[2]);
++  }
++  return std::tuple<Tensor, Tensor, Tensor>{grad_input, grad_weight, grad_bias};
++}
++
+ } // namespace native
+ } // namespace at
+ 
+diff --git a/aten/src/ATen/native/mkldnn/MKLDNNCommon.cpp b/aten/src/ATen/native/mkldnn/MKLDNNCommon.cpp
+index c11366a..95f8d9c 100644
+--- a/aten/src/ATen/native/mkldnn/MKLDNNCommon.cpp
++++ b/aten/src/ATen/native/mkldnn/MKLDNNCommon.cpp
+@@ -30,9 +30,23 @@ public:
+   IntrusivePtrTargetWrapper(const T& target): target_(target) {}
+   IntrusivePtrTargetWrapper(T&& target): target_(std::move(target)) {}
+ 
++  bool is_contiguous(c10::MemoryFormat memory_format) {
++    AT_ASSERTM(
++	       memory_format == c10::MemoryFormat::Contiguous,
++	       "is_contiguous expects Contiguous memory format.");
++    return true;
++  }
++
+   T& get_target() {
+     return target_;
+   }
++
++  void* get_raw_data_ptr() {
++    if (target_.get_data_handle() != nullptr) {
++      return static_cast<void*>(target_.get_data_handle());
++    }
++    return nullptr;
++  }
+ };
+ 
+ using IDeepTensorWrapper = IntrusivePtrTargetWrapper<ideep::tensor>;
+@@ -73,6 +87,19 @@ ideep::tensor itensor_view_from_dense(const Tensor& tensor) {
+            ideep::tensor::data_type::f32},
+           tensor.template data_ptr<float>()};
+ }
++
++// Note in case the aten Tensor is a dense tensor, the retured ideep
++// tensor is just a view of the storage of the aten dense tensor, so
++// caller needs to make sure the aten dense tensor's lifetime is
++// longer than the ideep tensor.
++ideep::tensor itensor_from_tensor(const at::Tensor& tensor) {
++  if (tensor.is_mkldnn()) {
++    return at::native::itensor_from_mkldnn(tensor);
++  } else {
++    return at::native::itensor_view_from_dense(tensor);
++  }
++}
++
+ }}
+ 
+ #endif // AT_MKLDNN_ENABLED()
+diff --git a/aten/src/ATen/native/mkldnn/MKLDNNCommon.h b/aten/src/ATen/native/mkldnn/MKLDNNCommon.h
+index 2a72864..11476aa 100644
+--- a/aten/src/ATen/native/mkldnn/MKLDNNCommon.h
++++ b/aten/src/ATen/native/mkldnn/MKLDNNCommon.h
+@@ -30,6 +30,10 @@ ideep::tensor& itensor_from_mkldnn(const Tensor& mkldnn_tensor);
+ // Construct an `ideep::tensor` "view" from dense tensor, note the
+ // ideep::tensor will share the underlying buffer
+ ideep::tensor itensor_view_from_dense(const Tensor& tensor);
++
++// Helper function for getting an ideep tensor out of an aten Tensor.
++ideep::tensor itensor_from_tensor(const at::Tensor& tensor);
++
+ }}
+ 
+ #endif // AT_MKLDNN_ENABLED
+diff --git a/aten/src/ATen/native/mkldnn/MKLDNNConversions.cpp b/aten/src/ATen/native/mkldnn/MKLDNNConversions.cpp
+index dc20734..a17815b 100644
+--- a/aten/src/ATen/native/mkldnn/MKLDNNConversions.cpp
++++ b/aten/src/ATen/native/mkldnn/MKLDNNConversions.cpp
+@@ -15,7 +15,9 @@ Tensor mkldnn_to_dense(const Tensor& mkldnn_tensor) {
+   Tensor cpu_tensor = at::empty(
+     std::vector<int64_t>(dims.begin(), dims.end()),
+     mkldnn_tensor.options().layout(c10::kStrided));
+-  stensor.to_public(cpu_tensor.template data_ptr<float>());
++  if (!stensor.is_empty()) {
++    stensor.to_public(cpu_tensor.template data_ptr<float>());
++  }
+   return cpu_tensor;
+ }
+ 
+diff --git a/aten/src/ATen/native/mkldnn/Normalization.cpp b/aten/src/ATen/native/mkldnn/Normalization.cpp
+index 4c7566a..cc133a9 100644
+--- a/aten/src/ATen/native/mkldnn/Normalization.cpp
++++ b/aten/src/ATen/native/mkldnn/Normalization.cpp
+@@ -17,7 +17,21 @@ std::tuple<Tensor, Tensor, Tensor> mkldnn_batch_norm(
+     bool train,
+     double momentum,
+     double eps) {
+-  AT_ERROR("mkldnn_batch_norm: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_batch_norm: ATen not compiled with MKLDNN support");
++}
++
++std::tuple<Tensor, Tensor, Tensor> mkldnn_batch_norm_backward(
++    const Tensor& grad_output,
++    const Tensor& input,
++    const Tensor& weight,
++    const Tensor& running_mean,
++    const Tensor& running_var,
++    const Tensor& save_mean,
++    const Tensor& save_invstd,
++    bool train,
++    double eps,
++    std::array<bool,3> grad_input_mask) {
++  TORCH_CHECK(false, "mkldnn_batch_norm_backward: ATen not compiled with MKLDNN support");
+ }
+ 
+ } // namespace native
+@@ -39,31 +53,46 @@ std::tuple<Tensor, Tensor, Tensor> mkldnn_batch_norm(
+     bool train,
+     double momentum,
+     double eps) {
++  TORCH_CHECK(input.dim() == 4 || input.dim() == 5,
++             "mkldnn_batch_norm: currently mkldnn only support 2d and 3d batchnorm");
++  TORCH_CHECK(weight.defined() && bias.defined(),
++             "mkldnn_batch_norm: currently mkldnn only support affine model");
++
+   ideep::tensor& x = itensor_from_mkldnn(input);
+-  ideep::tensor& w = itensor_from_mkldnn(weight);
+-  ideep::tensor& b = itensor_from_mkldnn(bias);
+-  ideep::tensor& m = itensor_from_mkldnn(running_mean);
+-  ideep::tensor& v = itensor_from_mkldnn(running_var);
++  const ideep::tensor w = itensor_from_tensor(weight);
++  const ideep::tensor b = itensor_from_tensor(bias);
+ 
++  bool use_running_stat = (running_mean.defined() && running_var.defined());
+   ideep::tensor y;
+ 
+   if (train) {
+-    // TODO: support training
+-    AT_ERROR("mkldnn_batch_norm: mkldnn training is not supported in yet.");
+-
+-    // ideep::tensor saved_mean;
+-    // ideep::tensor saved_var;
+-    // ideep::batch_normalization_forward_training::compute<AllocForMKLDNN>(
+-    //     x, w, b, y, saved_mean, saved_var, m, v, momentum, eps);
+-    // return std::make_tuple(
+-    //     new_with_itensor_mkldnn(std::move(y), input.options()),
+-    //     new_with_itensor_mkldnn(std::move(saved_mean), input.options()),
+-    //     new_with_itensor_mkldnn(std::move(saved_var), input.options()));
++    ideep::tensor saved_mean;
++    ideep::tensor saved_var;
++    ideep::batch_normalization_forward_training::compute<AllocForMKLDNN>(
++        x, w, b, y, saved_mean, saved_var, momentum, eps);
++    if (use_running_stat) {
++      auto len = x.get_nelems() / w.get_nelems(); // n*h*w
++      ideep::tensor m = itensor_from_tensor(running_mean);
++      ideep::tensor v = itensor_from_tensor(running_var);
++      const std::vector<float> scales_mean{1 - momentum, momentum};
++      const std::vector<float> scales_var{1 - momentum , momentum * len / (len - 1)};
++      ideep::sum::compute(scales_mean, {m, saved_mean}, m);
++      ideep::sum::compute(scales_var, {v, saved_var}, v);
++    }
++    return std::make_tuple(
++        new_with_itensor_mkldnn(std::move(y), input.options()),
++        new_with_itensor_mkldnn(std::move(saved_mean), input.options()),
++        new_with_itensor_mkldnn(std::move(saved_var), input.options()));
+   } else {
+-    AT_ASSERTM(input.dim() == 4 || input.dim() == 5,
+-               "mkldnn_batch_norm: currently mkldnn only support 2d and 3d batchnorm");
+-    ideep::batch_normalization_forward_inference::compute<AllocForMKLDNN>(
+-        x, m, v, w, b, y, eps);
++    if (use_running_stat) {
++      ideep::tensor m = itensor_from_tensor(running_mean);
++      ideep::tensor v = itensor_from_tensor(running_var);
++      ideep::batch_normalization_forward_inference::compute<AllocForMKLDNN>(
++          x, m, v, w, b, y, eps);
++    } else {
++      ideep::batch_normalization_forward_inference::compute<AllocForMKLDNN>(
++          x, w, b, y, eps);
++    }
+     return std::make_tuple(
+         new_with_itensor_mkldnn(std::move(y), input.options()),
+         new_with_itensor_mkldnn(ideep::tensor{}, input.options()),
+@@ -71,6 +100,40 @@ std::tuple<Tensor, Tensor, Tensor> mkldnn_batch_norm(
+   }
+ }
+ 
++std::tuple<Tensor, Tensor, Tensor> mkldnn_batch_norm_backward(const Tensor& grad_output,
++    const Tensor& input,
++    const Tensor& weight,
++    const Tensor& running_mean,
++    const Tensor& running_var,
++    const Tensor& save_mean,
++    const Tensor& save_invstd,
++    bool train,
++    double eps,
++    std::array<bool,3> grad_input_mask) {
++  TORCH_CHECK(train, "mkldnn_batch_norm_backward: currently mkldnn only support train model");
++  ideep::tensor& grady = itensor_from_mkldnn(grad_output);
++  ideep::tensor& x = itensor_from_mkldnn(input);
++  ideep::tensor w = itensor_from_tensor(weight);
++  ideep::tensor& m = itensor_from_mkldnn(save_mean);
++  ideep::tensor& v = itensor_from_mkldnn(save_invstd);
++
++  ideep::tensor gradx, gradw, gradb;
++  ideep::batch_normalization_backward::compute<AllocForMKLDNN>(
++      x, m, v, grady, w, gradx, gradw, gradb, eps);
++
++  if (weight.is_mkldnn()) {
++    return std::make_tuple(
++        new_with_itensor_mkldnn(std::move(gradx), input.options()),
++        new_with_itensor_mkldnn(std::move(gradw), input.options()),
++        new_with_itensor_mkldnn(std::move(gradb), input.options()));
++  } else {
++    return std::make_tuple(
++        new_with_itensor_mkldnn(std::move(gradx), input.options()),
++        mkldnn_to_dense(new_with_itensor_mkldnn(std::move(gradw), input.options())),
++        mkldnn_to_dense(new_with_itensor_mkldnn(std::move(gradb), input.options())));
++  }
++}
++
+ } // namespace native
+ } // namespace at
+ 
+diff --git a/aten/src/ATen/native/mkldnn/Pooling.cpp b/aten/src/ATen/native/mkldnn/Pooling.cpp
+index 6825565..6a2da7c 100644
+--- a/aten/src/ATen/native/mkldnn/Pooling.cpp
++++ b/aten/src/ATen/native/mkldnn/Pooling.cpp
+@@ -17,8 +17,7 @@ Tensor mkldnn_max_pool2d(
+     IntArrayRef padding,
+     IntArrayRef dilation,
+     bool ceil_mode) {
+-  AT_ERROR(
+-      "mkldnn_max_pool2d: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_max_pool2d: ATen not compiled with MKLDNN support");
+ }
+ 
+ Tensor mkldnn_avg_pool2d(
+@@ -29,7 +28,7 @@ Tensor mkldnn_avg_pool2d(
+     bool ceil_mode,
+     bool count_include_pad,
+     c10::optional<int64_t> divisor_override) {
+-  AT_ERROR("mkldnn_avg_pool2d: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_avg_pool2d: ATen not compiled with MKLDNN support");
+ }
+ 
+ Tensor& mkldnn_avg_pool2d_out(
+@@ -41,19 +40,68 @@ Tensor& mkldnn_avg_pool2d_out(
+     bool ceil_mode,
+     bool count_include_pad,
+     c10::optional<int64_t> divisor_override) {
+-  AT_ERROR("mkldnn_avg_pool2d_out: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_avg_pool2d_out: ATen not compiled with MKLDNN support");
+ }
+ 
+ Tensor mkldnn_adaptive_avg_pool2d(Tensor const& input, IntArrayRef output_size) {
+-  AT_ERROR("mkldnn_adaptive_avg_pool2d: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_adaptive_avg_pool2d: ATen not compiled with MKLDNN support");
+ }
+ 
+ Tensor& mkldnn_adaptive_avg_pool2d_out(
+     Tensor& output,
+     const Tensor& input,
+     IntArrayRef output_size) {
+-  AT_ERROR(
+-      "mkldnn_adaptive_avg_pool2d_out: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_adaptive_avg_pool2d_out: ATen not compiled with MKLDNN support");
++}
++
++Tensor mkldnn_max_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& output,
++    const Tensor& input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    IntArrayRef dilation,
++    bool ceil_mode) {
++  TORCH_CHECK(false, "mkldnn_max_pool2d_backward: ATen not compiled with MKLDNN support");
++}
++
++Tensor& mkldnn_avg_pool2d_backward_out(
++    Tensor & grad_input,
++    const Tensor & grad_output,
++    const Tensor & input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    bool ceil_mode,
++    bool count_include_pad,
++    c10::optional<int64_t> divisor_override) {
++  TORCH_CHECK(false, "mkldnn_avg_pool2d_backward_out: ATen not compiled with MKLDNN support");
++}
++
++Tensor mkldnn_avg_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    bool ceil_mode,
++    bool count_include_pad,
++    c10::optional<int64_t> divisor_override) {
++  TORCH_CHECK(false, "mkldnn_avg_pool2d_backward: ATen not compiled with MKLDNN support");
++}
++
++Tensor& mkldnn_adaptive_avg_pool2d_backward_out(
++    Tensor& grad_input,
++    const Tensor& grad_output,
++    const Tensor& input) {
++  TORCH_CHECK(false, "mkldnn_adaptive_avg_pool2d_backward_out: ATen not compiled with MKLDNN support");
++}
++
++Tensor mkldnn_adaptive_avg_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& input) {
++  TORCH_CHECK(false, "mkldnn_adaptive_avg_pool2d_backward: ATen not compiled with MKLDNN support");
+ }
+ 
+ } // namespace native
+@@ -144,6 +192,78 @@ static Tensor _mkldnn_pool2d(
+   return new_with_itensor_mkldnn(std::move(y), input.options());
+ }
+ 
++static Tensor _mkldnn_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& output,
++    const Tensor& input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    IntArrayRef dilation,
++    bool ceil_mode,
++    ideep::algorithm algo) {
++
++  auto kernel_size_vec = expand_param_if_needed(kernel_size, "kernel_size", 2);
++  auto stride_vec = expand_param_if_needed(stride, "stride", 2);
++  auto padding_vec = expand_param_if_needed(padding, "padding", 2);
++  auto padding_vec_l = padding_vec;
++  auto padding_vec_r = padding_vec;
++  auto dilation_vec = expand_param_if_needed(dilation, "dilation", 2);
++
++  if (ceil_mode) {
++    // MKLDNN does not support ceil mode, so we adjust padding
++    // on the right side to match behavior. Adjust output size
++    // accordingly.
++    const std::vector<int64_t> output_sizes_ceil = pool_output_sizes(
++        input.sizes(),
++        kernel_size_vec,
++        stride_vec,
++        padding_vec_l,
++        padding_vec_r,
++        dilation_vec,
++        true /* ceil_mode */);
++
++    // adjust padding until output sizes agree
++    bool all_equal = false;
++    std::vector<int64_t> output_sizes;
++    while (!all_equal) {
++      output_sizes = pool_output_sizes(
++          input.sizes(),
++          kernel_size_vec,
++          stride_vec,
++          padding_vec_l,
++          padding_vec_r,
++          dilation_vec,
++          false /*ceil_mode */);
++
++      all_equal = true;
++      for (size_t i = 2; i < input.sizes().size(); ++i) {
++        if (output_sizes[i] < output_sizes_ceil[i]) {
++           padding_vec_r[i - 2]++;
++           all_equal = false;
++        }
++      }
++    }
++  }
++
++  const ideep::tensor& grady = itensor_from_mkldnn(grad_output);
++  const ideep::tensor& y = itensor_from_mkldnn(output);
++  const ideep::tensor& x = itensor_from_mkldnn(input);
++  ideep::tensor gradx;
++  ideep::pooling_backward::compute<AllocForMKLDNN>(
++      grady,
++      y,
++      x,
++      gradx,
++      {stride_vec.cbegin(), stride_vec.cend()},
++      {kernel_size_vec.cbegin(), kernel_size_vec.cend()},
++      {padding_vec_l.cbegin(), padding_vec_l.cend()},
++      {padding_vec_r.cbegin(), padding_vec_r.cend()},
++      algo);
++
++  return new_with_itensor_mkldnn(std::move(gradx), grad_output.options());
++}
++
+ Tensor mkldnn_max_pool2d(
+     const Tensor& input,
+     IntArrayRef kernel_size,
+@@ -191,14 +311,13 @@ Tensor& mkldnn_avg_pool2d_out(
+     bool ceil_mode,
+     bool count_include_pad,
+     c10::optional<int64_t> divisor_override) {
+-  AT_ERROR(
+-      "mkldnn_avg_pool2d_out: in-place mkldnn operations are not supported yet");
++  TORCH_CHECK(false, "mkldnn_avg_pool2d_out: in-place mkldnn operations are not supported yet");
+ }
+ 
+ Tensor mkldnn_adaptive_avg_pool2d(
+     Tensor const& input,
+     IntArrayRef output_size) {
+-  AT_ASSERTM(input.dim() == 4, "mkldnn_adaptive_avg_pool2d: Expect 2D input");
++  TORCH_CHECK(input.dim() == 4, "mkldnn_adaptive_avg_pool2d: Expect 2D input");
+ 
+   auto output_size_vec =
+       expand_param_if_needed(output_size, "output_size", input.dim() - 2);
+@@ -206,8 +325,8 @@ Tensor mkldnn_adaptive_avg_pool2d(
+   for (int64_t i = 2; i < input.dim(); ++i) {
+     auto s1 = input.size(i);
+     auto s2 = output_size_vec[i - 2];
+-    AT_ASSERTM(s2 != 0, "output size can not be zero");
+-    AT_ASSERTM(
++    TORCH_CHECK(s2 != 0, "output size can not be zero");
++    TORCH_CHECK(
+         s1 % s2 == 0,
+         "input size is not divisible by the output size is not supported yet");
+     kernel_size[i - 2] = s1 / s2;
+@@ -226,10 +345,99 @@ Tensor& mkldnn_adaptive_avg_pool2d_out(
+     Tensor& output,
+     const Tensor& input,
+     IntArrayRef output_size) {
+-  AT_ERROR(
+-      "mkldnn_adaptive_avg_pool2d_out: in-place mkldnn operations are not supported yet");
++  TORCH_CHECK(false, "mkldnn_adaptive_avg_pool2d_out: in-place mkldnn operations are not supported yet");
++}
++
++Tensor mkldnn_max_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& output,
++    const Tensor& input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    IntArrayRef dilation,
++    bool ceil_mode) {
++  return _mkldnn_pool2d_backward(
++      grad_output,
++      output,
++      input,
++      kernel_size,
++      stride,
++      padding,
++      dilation,
++      ceil_mode,
++      ideep::algorithm::pooling_max);
++}
++
++Tensor mkldnn_avg_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    bool ceil_mode,
++    bool count_include_pad,
++    c10::optional<int64_t> divisor_override) {
++  return _mkldnn_pool2d_backward(
++      grad_output,
++      grad_output,
++      input,
++      kernel_size,
++      stride,
++      padding,
++      /*dilation*/ std::vector<int64_t>{1, 1},
++      ceil_mode,
++      count_include_pad ? ideep::algorithm::pooling_avg_include_padding
++                        : ideep::algorithm::pooling_avg_exclude_padding);
++}
++
++Tensor& mkldnn_avg_pool2d_backward_out(
++    Tensor & grad_input,
++    const Tensor & grad_output,
++    const Tensor & input,
++    IntArrayRef kernel_size,
++    IntArrayRef stride,
++    IntArrayRef padding,
++    bool ceil_mode,
++    bool count_include_pad,
++    c10::optional<int64_t> divisor_override) {
++  TORCH_CHECK(false, "mkldnn_avg_pool2d_backward_out: in-place mkldnn operations are not supported yet");
++}
++
++Tensor mkldnn_adaptive_avg_pool2d_backward(
++    const Tensor& grad_output,
++    const Tensor& input) {
++  TORCH_CHECK(input.dim() == 4, "mkldnn_adaptive_avg_pool2d_backward: Expect 2D input");
++
++  auto output_size_vec = grad_output.sizes();
++  std::vector<int64_t> kernel_size(input.dim() - 2);
++  for (size_t i = 2; i < input.dim(); ++i) {
++    auto s1 = input.size(i);
++    auto s2 = output_size_vec[i];
++    TORCH_CHECK(s2 != 0, "output size can not be zero");
++    TORCH_CHECK(
++        s1 % s2 == 0,
++        "input size is not divisible by the output size is not supported yet");
++    kernel_size[i - 2] = s1 / s2;
++  }
++  return _mkldnn_pool2d_backward(
++      grad_output,
++      grad_output,
++      input,
++      kernel_size,
++      /*stride*/ kernel_size,
++      /*padding*/ {0, 0},
++      /*dilation*/{1, 1},
++      false,
++      /*algo*/ ideep::algorithm::pooling_avg);
+ }
+ 
++Tensor& mkldnn_adaptive_avg_pool2d_backward_out(
++    Tensor& grad_input,
++    const Tensor& grad_output,
++    const Tensor& input) {
++  TORCH_CHECK(false, "mkldnn_adaptive_avg_pool2d_backward_out: in-place mkldnn operations are not supported yet");
++}
+ 
+ } // namespace native
+ } // namespace at
+diff --git a/aten/src/ATen/native/mkldnn/Relu.cpp b/aten/src/ATen/native/mkldnn/Relu.cpp
+index 27c6ba1..8c9ffd6 100644
+--- a/aten/src/ATen/native/mkldnn/Relu.cpp
++++ b/aten/src/ATen/native/mkldnn/Relu.cpp
+@@ -8,11 +8,15 @@
+ namespace at { namespace native {
+ 
+ Tensor mkldnn_relu(const Tensor& input) {
+-  AT_ERROR("mkldnn_relu: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_relu: ATen not compiled with MKLDNN support");
+ }
+ 
+ Tensor& mkldnn_relu_(Tensor& input) {
+-  AT_ERROR("mkldnn_relu_: ATen not compiled with MKLDNN support");
++  TORCH_CHECK(false, "mkldnn_relu_: ATen not compiled with MKLDNN support");
++}
++
++Tensor mkldnn_relu_backward(const Tensor& grad_output, const Tensor& input) {
++  TORCH_CHECK(false, "mkldnn_relu_backward: ATen not compiled with MKLDNN support");
+ }
+ 
+ }}
+@@ -38,6 +42,15 @@ Tensor& mkldnn_relu_(Tensor& input) {
+   return input;
+ }
+ 
++Tensor mkldnn_relu_backward(const Tensor& grad_output, const Tensor& input) {
++  ideep::tensor& x = itensor_from_mkldnn(input);
++  ideep::tensor grady = itensor_from_mkldnn(grad_output);
++  ideep::tensor gradx;
++  ideep::eltwise_backward::compute<AllocForMKLDNN>(x, grady, gradx,
++      ideep::algorithm::eltwise_relu, /*alpha*/ 0.0);
++  return new_with_itensor_mkldnn(std::move(gradx), grad_output.options());
++}
++
+ }}
+ 
+ #endif // AT_MKLDNN_EBABLED
+diff --git a/aten/src/ATen/native/mkldnn/TensorShape.cpp b/aten/src/ATen/native/mkldnn/TensorShape.cpp
+index b45784d..fff16fe 100644
+--- a/aten/src/ATen/native/mkldnn/TensorShape.cpp
++++ b/aten/src/ATen/native/mkldnn/TensorShape.cpp
+@@ -55,10 +55,13 @@ Tensor mkldnn_reshape(const Tensor& self, IntArrayRef size) {
+ }
+ 
+ Tensor mkldnn_clone(const Tensor& self, c10::optional<c10::MemoryFormat> optional_memory_format) {
+-  TORCH_CHECK(
+-      !optional_memory_format.has_value(),
+-      "unsupported memory format option ",
+-      optional_memory_format.value());
++  if (optional_memory_format.has_value()) {
++    TORCH_CHECK(
++	optional_memory_format == at::MemoryFormat::Contiguous,
++	"unsupported memory format option ",
++	optional_memory_format.value());
++
++  }
+   ideep::tensor& src = itensor_from_mkldnn(self);
+   ideep::tensor dst;
+   ideep::direct_copy::compute<AllocForMKLDNN>(src, dst);
+diff --git a/aten/src/ATen/native/native_functions.yaml b/aten/src/ATen/native/native_functions.yaml
+index 724ff91..0918fa6 100644
+--- a/aten/src/ATen/native/native_functions.yaml
++++ b/aten/src/ATen/native/native_functions.yaml
+@@ -1602,6 +1602,15 @@
+ 
+ - func: fbgemm_linear_int8_weight_fp32_activation(Tensor input, Tensor weight, Tensor packed, Tensor col_offsets, Scalar weight_scale, Scalar weight_zero_point, Tensor bias) -> Tensor
+ 
++- func: mkldnn_linear_backward_input(int[] input_size, Tensor grad_output, Tensor weight) -> Tensor
++
++- func: mkldnn_linear_backward_weights(Tensor grad_output, Tensor input, Tensor weight, bool bias_defined) -> (Tensor, Tensor)
++
++- func: mkldnn_linear_backward(Tensor input, Tensor grad_output, Tensor weight, bool[3] output_mask) -> (Tensor, Tensor, Tensor)
++  python_module: nn
++  dispatch:
++    MkldnnCPU: mkldnn_linear_backward
++
+ - func: fbgemm_linear_int8_weight(Tensor input, Tensor weight, Tensor packed, Tensor col_offsets, Scalar weight_scale, Scalar weight_zero_point, Tensor bias) -> Tensor
+   use_c10_dispatcher: full
+ 
+@@ -1802,6 +1811,11 @@
+   dispatch:
+     QuantizedCPU: quantized_max_pool2d
+ 
++- func: mkldnn_max_pool2d_backward(Tensor grad_output, Tensor output, Tensor input, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor
++  use_c10_dispatcher: unboxed_only
++  dispatch:
++    MkldnnCPU: mkldnn_max_pool2d_backward
++
+ - func: max_pool3d(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, int[3] dilation=1, bool ceil_mode=False) -> Tensor
+   supports_named_tensor: True
+ 
+@@ -1875,7 +1889,7 @@
+ 
+ - func: mkldnn_convolution_backward_input(int[] self_size, Tensor grad_output, Tensor weight, int[] padding, int[] stride, int[] dilation, int groups, bool bias_defined) -> Tensor
+ 
+-- func: mkldnn_convolution_backward_weights(int[] weight_size, Tensor grad_output, Tensor self, int[] padding, int[] stride, int[] dilation, int groups, bool bias_defined) -> (Tensor, Tensor)
++- func: mkldnn_convolution_backward_weights(Tensor weight, Tensor grad_output, Tensor self, int[] padding, int[] stride, int[] dilation, int groups, bool bias_defined) -> (Tensor, Tensor)
+ 
+ - func: mkldnn_convolution_backward(Tensor self, Tensor grad_output, Tensor weight, int[] padding, int[] stride, int[] dilation, int groups, bool[3] output_mask) -> (Tensor, Tensor, Tensor)
+ 
+@@ -2098,6 +2112,7 @@
+   dispatch:
+     CPU: batch_norm_backward_cpu
+     CUDA: batch_norm_backward_cuda
++    MkldnnCPU: mkldnn_batch_norm_backward
+ 
+ - func: batch_norm_backward_reduce(Tensor grad_out, Tensor input, Tensor mean, Tensor invstd, Tensor? weight, bool input_g, bool weight_g, bool bias_g) -> (Tensor, Tensor, Tensor, Tensor)
+   dispatch:
+@@ -2371,6 +2386,8 @@
+     MkldnnCPU: mkldnn_relu_
+     QuantizedCPU: quantized_relu_
+ 
++- func: mkldnn_relu_backward(Tensor grad_output, Tensor input) -> Tensor
++
+ - func: prelu(Tensor self, Tensor weight) -> Tensor
+   use_c10_dispatcher: full
+   variants: function, method
+@@ -2802,6 +2819,7 @@
+   variants: function
+   dispatch:
+     CPU: threshold_backward
++    MkldnnCPU: threshold_backward
+     CUDA: threshold_backward_cuda
+ 
+ - func: transpose.int(Tensor(a) self, int dim0, int dim1) -> Tensor(a)
+@@ -3589,6 +3607,12 @@
+     SparseCUDA: copy_sparse_
+   requires_tensor: True
+ 
++- func: copy_opaque_to_opaque_(Tensor(a!) self, Tensor src, bool non_blocking=False) -> Tensor(a!)
++  variants: function
++  dispatch:
++    MkldnnCPU: copy_mkldnn_
++  requires_tensor: True
++
+ - func: unbind.int(Tensor(a) self, int dim=0) -> Tensor(a)[]
+   variants: function, method
+   supports_named_tensor: True
+@@ -5791,6 +5815,12 @@
+     MkldnnCPU: mkldnn_adaptive_avg_pool2d
+   requires_tensor: True
+ 
++- func: mkldnn_adaptive_avg_pool2d_backward(Tensor grad_output, Tensor self) -> Tensor
++  use_c10_dispatcher: unboxed_only
++  dispatch:
++    MkldnnCPU: mkldnn_adaptive_avg_pool2d_backward
++  requires_tensor: True
++
+ - func: _adaptive_avg_pool2d(Tensor self, int[2] output_size) -> Tensor
+   dispatch:
+     CPU: adaptive_avg_pool2d_cpu
+@@ -5903,12 +5933,14 @@
+   dispatch:
+     CPU: avg_pool2d_backward_out_cpu
+     CUDA: avg_pool2d_backward_out_cuda
++    MkldnnCPU: mkldnn_avg_pool2d_backward_out
+ 
+ - func: avg_pool2d_backward(Tensor grad_output, Tensor self, int[2] kernel_size, int[2] stride, int[2] padding, bool ceil_mode, bool count_include_pad, int? divisor_override) -> Tensor
+   python_module: nn
+   dispatch:
+     CPU: avg_pool2d_backward_cpu
+     CUDA: avg_pool2d_backward_cuda
++    MkldnnCPU: mkldnn_avg_pool2d_backward
+ 
+ - func: avg_pool3d.out(Tensor self, int[3] kernel_size, int[3] stride=[], int[3] padding=0, bool ceil_mode=False, bool count_include_pad=True, int? divisor_override=None, *, Tensor(a!) out) -> Tensor(a!)
+   python_module: nn
+diff --git a/aten/src/ATen/native/quantized/cpu/qnnpack/src/q8gemm/8x8-dq-aarch64-neon.S b/aten/src/ATen/native/quantized/cpu/qnnpack/src/q8gemm/8x8-dq-aarch64-neon.S
+index 7dc8611..60ad8d1 100644
+--- a/aten/src/ATen/native/quantized/cpu/qnnpack/src/q8gemm/8x8-dq-aarch64-neon.S
++++ b/aten/src/ATen/native/quantized/cpu/qnnpack/src/q8gemm/8x8-dq-aarch64-neon.S
+@@ -659,14 +659,14 @@ BEGIN_FUNCTION pytorch_q8gemm_dq_ukernel_8x8__aarch64_neon
+ 
+     SUB x1, x1, 4
+ 
+-    MOV V8.4s, V9.4s
+-    MOV v10.4s, v11.4s
+-    MOV v12.4s, V13.4s
+-    MOV V14.4s, V15.4s
+-    MOV V16.4s, V17.4s
+-    MOV V18.4s, V19.4s
+-    MOV V20.4s, V21.4s
+-    MOV V22.4s, V23.4s
++    MOV V8.16b, V9.16b
++    MOV v10.16b, v11.16b
++    MOV v12.16b, V13.16b
++    MOV V14.16b, V15.16b
++    MOV V16.16b, V17.16b
++    MOV V18.16b, V19.16b
++    MOV V20.16b, V21.16b
++    MOV V22.16b, V23.16b
+ 
+ 5:
+     CMP x1, 2
+diff --git a/c10/CMakeLists.txt b/c10/CMakeLists.txt
+index a43122c..cc34bf2 100644
+--- a/c10/CMakeLists.txt
++++ b/c10/CMakeLists.txt
+@@ -86,6 +86,12 @@ if(USE_ROCM)
+   add_subdirectory(hip)
+ endif()
+ 
++if (CMAKE_CXX_COMPILER MATCHES ".*/FCC$" OR
++    CMAKE_C_COMPILER MATCHES ".*/fcc$")
++  link_directories(/lib64)
++  target_link_libraries(c10 PRIVATE stdc++)
++endif()
++
+ # ---[ Installation
+ # Note: for now, we will put all export path into one single Caffe2Targets group
+ # to deal with the cmake deployment need. Inside the Caffe2Targets set, the
+diff --git a/c10/core/TensorImpl.h b/c10/core/TensorImpl.h
+index de11b22..21ec5e7 100644
+--- a/c10/core/TensorImpl.h
++++ b/c10/core/TensorImpl.h
+@@ -595,7 +595,7 @@ struct C10_API TensorImpl : public c10::intrusive_ptr_target {
+    * assume that itemsize() * numel() is sufficient to compute the bytes that
+    * can be validly read from this tensor.
+    */
+-  inline void* data() const {
++  virtual void* data() const {
+     TORCH_CHECK(has_storage(),
+         "Cannot access data pointer of Tensor that doesn't have storage");
+     TORCH_CHECK(dtype_initialized(),
+diff --git a/caffe2/operators/listwise_l2r_op.cc b/caffe2/operators/listwise_l2r_op.cc
+index 1583a4b..02031ae 100644
+--- a/caffe2/operators/listwise_l2r_op.cc
++++ b/caffe2/operators/listwise_l2r_op.cc
+@@ -27,15 +27,15 @@ void arg_sort(const TDATA* data, TIDX* idx, const size_t N, bool reverse) {
+ #define PAIRWISE_DIFF(vec, N)                               \
+   ((vec.matrix() * Eigen::MatrixXf::Ones(1, N) -            \
+     Eigen::MatrixXf::Ones(N, 1) * vec.matrix().transpose()) \
+-       .array())
++       .array()).eval()
+ 
+-#define CWISE_SIGM(vec) (1. / (1. + (-(vec)).exp()))
++#define CWISE_SIGM(vec) (1. / (1. + (-(vec)).exp())).eval()
+ 
+-#define CWISE_GT(vec1, vec2) ((vec1) > (vec2))
++#define CWISE_GT(vec1, vec2) ((vec1) > (vec2)).eval()
+ 
+-#define CWISE_LT(vec1, vec2) ((vec1) < (vec2))
++#define CWISE_LT(vec1, vec2) ((vec1) < (vec2)).eval()
+ 
+-#define CWISE_SIGN(vec) (CWISE_GT((vec), 0).cast<float>() * 2. - 1.)
++#define CWISE_SIGN(vec) (CWISE_GT((vec), 0).cast<float>() * 2. - 1.).eval()
+ 
+ #define CWISE_LOG_SIGM(vec, huge) \
+   (CWISE_GT((vec), (huge))        \
+diff --git a/cmake/Dependencies.cmake b/cmake/Dependencies.cmake
+index d396daf..2332d0d 100644
+--- a/cmake/Dependencies.cmake
++++ b/cmake/Dependencies.cmake
+@@ -107,7 +107,7 @@ else()
+   set(AT_MKLDNN_ENABLED 0)
+   set(AT_MKL_ENABLED 0)
+ endif()
+-set_property(CACHE BLAS PROPERTY STRINGS "Eigen;ATLAS;OpenBLAS;MKL;vecLib;FLAME")
++set_property(CACHE BLAS PROPERTY STRINGS "Eigen;ATLAS;OpenBLAS;MKL;vecLib;FLAME;SSL2")
+ message(STATUS "Trying to find preferred BLAS backend of choice: " ${BLAS})
+ 
+ if(BLAS STREQUAL "Eigen")
+@@ -147,6 +147,19 @@ elseif(BLAS STREQUAL "vecLib")
+   find_package(vecLib REQUIRED)
+   include_directories(SYSTEM ${vecLib_INCLUDE_DIR})
+   list(APPEND Caffe2_PUBLIC_DEPENDENCY_LIBS ${vecLib_LINKER_LIBS})
++elseif(BLAS STREQUAL "SSL2")
++  if (CMAKE_CXX_COMPILER MATCHES ".*/FCC$" AND
++      CMAKE_C_COMPILER MATCHES ".*/fcc$")
++    message(STATUS "SSL2 Selected BLAS library")
++    list(APPEND Caffe2_PUBLIC_DEPENDENCY_LIBS "fjlapackexsve.so")
++    set(USE_SSL2 ON)
++    message(STATUS "set CMAKE_SHARED_LINKER_FLAGS: -SSL2 --linkfortran")
++    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -SSL2 --linkfortran")
++  else()
++    message(STATUS "Not built using fcc and FCC.")
++    message(STATUS "CMAKE_C_COMPILER: ${CMAKE_C_COMPILER}")
++    message(STATUS "CMAKE_CXX_COMPILER: ${CMAKE_CXX_COMPILER}")
++  endif()
+ else()
+   message(FATAL_ERROR "Unrecognized BLAS option: " ${BLAS})
+ endif()
+@@ -155,7 +168,7 @@ if (NOT INTERN_BUILD_MOBILE)
+   set(AT_MKL_ENABLED 0)
+   set(AT_MKL_MT 0)
+   set(USE_BLAS 1)
+-  if(NOT (ATLAS_FOUND OR OpenBLAS_FOUND OR MKL_FOUND OR VECLIB_FOUND))
++  if(NOT (ATLAS_FOUND OR OpenBLAS_FOUND OR MKL_FOUND OR VECLIB_FOUND OR USE_SSL2))
+     message(WARNING "Preferred BLAS (" ${BLAS} ") cannot be found, now searching for a general BLAS library")
+     find_package(BLAS)
+     if (NOT BLAS_FOUND)
+@@ -918,8 +931,20 @@ if(USE_OPENMP)
+     ELSE()
+         message(STATUS "Will link against OpenMP libraries: ${OpenMP_CXX_LIBRARIES}")
+     ENDIF()
+-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
++    IF(CMAKE_C_COMPILER MATCHES ".*/fcc$")
++        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Kopenmp -Nlibomp -fopenmp")
++        set(OpenMP_C_FLAGS "")
++        set(OpenMP_C_LIBRARIES "")
++    ELSE()
++        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
++    ENDIF()
++    IF(CMAKE_CXX_COMPILER MATCHES ".*/FCC$")
++        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Kopenmp -Nlibomp -fopenmp")
++        set(OpenMP_CXX_FLAGS "")
++        set(OpenMP_CXX_LIBRARIES "")
++    ELSE()
++        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
++    ENDIF()
+   else()
+     message(WARNING "Not compiling with OpenMP. Suppress this warning with -DUSE_OPENMP=OFF")
+     caffe2_update_option(USE_OPENMP OFF)
+diff --git a/cmake/Modules/FindBLAS.cmake b/cmake/Modules/FindBLAS.cmake
+index e93e98a..723dd26 100644
+--- a/cmake/Modules/FindBLAS.cmake
++++ b/cmake/Modules/FindBLAS.cmake
+@@ -20,7 +20,7 @@ SET(BLAS_INCLUDE_DIR)
+ SET(BLAS_INFO)
+ SET(BLAS_F2C)
+ 
+-SET(WITH_BLAS "" CACHE STRING "Blas type [mkl/open/goto/acml/atlas/accelerate/veclib/generic]")
++SET(WITH_BLAS "" CACHE STRING "Blas type [mkl/open/goto/acml/atlas/accelerate/veclib/ssl2/generic]")
+ 
+ # Old FindBlas
+ INCLUDE(CheckCSourceRuns)
+@@ -239,6 +239,27 @@ if((NOT BLAS_LIBRARIES)
+   endif (BLAS_LIBRARIES)
+ endif()
+ 
++# BLAS in SSL2 library?
++if((NOT BLAS_LIBRARIES)
++    AND ((NOT WITH_BLAS) OR (WITH_BLAS STREQUAL "ssl2")))
++  if (CMAKE_CXX_COMPILER MATCHES ".*/FCC$" AND
++      CMAKE_C_COMPILER MATCHES ".*/fcc$")
++    check_fortran_libraries(
++    BLAS_LIBRARIES
++    BLAS
++    sgemm
++    "-SSL2;--linkfortran"
++    "fjlapackexsve")
++  endif()
++  if (BLAS_LIBRARIES)
++    set(BLAS_INFO "ssl2")
++    if (CMAKE_CXX_COMPILER MATCHES ".*/FCC$" AND
++       CMAKE_C_COMPILER MATCHES ".*/fcc$")
++      set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -SSL2 --linkfortran")
++    endif()
++  endif (BLAS_LIBRARIES)
++endif()
++
+ # Generic BLAS library?
+ if((NOT BLAS_LIBRARIES)
+     AND ((NOT WITH_BLAS) OR (WITH_BLAS STREQUAL "generic")))
+diff --git a/test/test_mkldnn.py b/test/test_mkldnn.py
+index e5b3186..7a4a34b 100644
+--- a/test/test_mkldnn.py
++++ b/test/test_mkldnn.py
+@@ -150,6 +150,32 @@ class TestMkldnn(TestCase):
+                 conv2d(x),
+                 conv2d_loaded(x.to_mkldnn()).to_dense())
+ 
++    def test_conv2d_backward(self):
++        for groups in [1, 4]:
++            N = 64
++            C = 3 * groups
++            M = 3 * groups
++            x = torch.randn(N, C, 224, 224, dtype=torch.float32) * 100
++            for bias in [False]:
++                conv2d = torch.nn.Conv2d(in_channels=C,
++                                         out_channels=M,
++                                         kernel_size=3,
++                                         stride=2,
++                                         padding=1,
++                                         bias=bias,
++                                         groups=groups).float()
++                mkldnn_conv2d = copy.deepcopy(conv2d)
++                x1 = x.clone().requires_grad_()
++                x2 = x.clone().to_mkldnn().requires_grad_()
++                y1 = conv2d(x1).sum()
++                y2 = mkldnn_conv2d(x2).to_dense().sum()
++                y1.backward()
++                y2.backward()
++                self.assertEqual(x1.grad, x2.grad.to_dense())
++                self.assertEqual(conv2d.weight.grad, mkldnn_conv2d.weight.grad)
++                if bias:
++                    self.assertEqual(conv2d.bias.grad, mkldnn_conv2d.bias.grad)
++
+     def test_relu(self):
+         x = torch.randn((4, 5), dtype=torch.float32) * 10
+         self.assertEqual(torch.relu(x), torch.relu(x.to_mkldnn()).to_dense())
+@@ -159,6 +185,24 @@ class TestMkldnn(TestCase):
+         x2 = x1.clone().to_mkldnn()
+         self.assertEqual(torch.relu_(x1), torch.relu_(x2).to_dense())
+ 
++    def test_relu_backward(self):
++        x = torch.randn((4, 5), dtype=torch.float32) * 10
++        x1 = x.clone().requires_grad_()
++        x2 = x.clone().to_mkldnn().requires_grad_()
++        y1 = torch.relu(x1).sum()
++        y2 = torch.relu(x2).to_dense().sum()
++        y1.backward()
++        y2.backward()
++        self.assertEqual(x1.grad, x2.grad.to_dense())
++        # inplace
++        x1 = x.clone().requires_grad_()
++        x2 = x.clone().to_mkldnn().requires_grad_()
++        y1 = torch.relu_(x1.clone()).sum()
++        y2 = torch.relu_(x2.clone()).to_dense().sum()
++        y1.backward()
++        y2.backward()
++        self.assertEqual(x1.grad, x2.grad.to_dense())
++
+     def test_max_pool2d(self):
+         N = torch.randint(3, 10, (1,)).item()
+         C = torch.randint(3, 10, (1,)).item()
+@@ -178,6 +222,24 @@ class TestMkldnn(TestCase):
+                         max_pool2d(x),
+                         max_pool2d(x.to_mkldnn()).to_dense())
+ 
++    def test_max_pool2d_backward(self):
++        x = torch.randn(10, 3, 64, 64, dtype=torch.float32) * 10
++        for ceil_mode in [False, True]:
++            max_pool2d = torch.nn.MaxPool2d(
++                kernel_size=3,
++                stride=2,
++                padding=1,
++                ceil_mode=ceil_mode)
++
++            x1 = x.clone().requires_grad_()
++            x2 = x.clone().to_mkldnn().requires_grad_()
++
++            y1 = max_pool2d(x1).sum()
++            y2 = max_pool2d(x2).to_dense().sum()
++            y1.backward()
++            y2.backward()
++            self.assertEqual(x1.grad, x2.grad.to_dense())
++
+     def test_avg_pool2d(self):
+         N = torch.randint(3, 10, (1,)).item()
+         C = torch.randint(3, 10, (1,)).item()
+@@ -194,6 +256,24 @@ class TestMkldnn(TestCase):
+                 avg_pool2d(x),
+                 avg_pool2d(x.to_mkldnn()).to_dense())
+ 
++    def test_avg_pool2d_backward(self):
++        x = torch.randn(10, 3, 64, 64, dtype=torch.float32) * 10
++
++        for count_include_pad in [True, False]:
++            x1 = x.clone().requires_grad_()
++            x2 = x.clone().to_mkldnn().requires_grad_()
++            avg_pool2d = torch.nn.AvgPool2d(
++                kernel_size=3,
++                stride=2,
++                padding=1,
++                count_include_pad=count_include_pad)
++
++            y1 = avg_pool2d(x1).sum()
++            y2 = avg_pool2d(x2).to_dense().sum()
++            y1.backward()
++            y2.backward()
++            self.assertEqual(x1.grad, x2.grad.to_dense())
++
+     def test_adaptive_avg_pool2d(self):
+         N = torch.randint(3, 10, (1,)).item()
+         C = torch.randint(3, 10, (1,)).item()
+@@ -205,21 +285,66 @@ class TestMkldnn(TestCase):
+             adaptive_avg_pool2d(x),
+             adaptive_avg_pool2d(x.to_mkldnn()).to_dense())
+ 
+-    def test_batch_norm2d(self):
+-        N = torch.randint(3, 10, (1,)).item()
+-        C = torch.randint(3, 100, (1,)).item()
+-        x = torch.randn(N, C, 35, 45, dtype=torch.float32) * 10
++    def test_adaptive_avg_pool2d_backward(self):
++        x = torch.randn(10, 3, 224, 224, dtype=torch.float32) * 100
+ 
+-        # TODO: support training
+-        for train in [False]:
+-            bn = torch.nn.BatchNorm2d(C).float().train(train)
+-            mkldnn_bn = mkldnn_utils.to_mkldnn(copy.deepcopy(bn))
+-            self.assertEqual(
+-                bn(x),
+-                mkldnn_bn(x.to_mkldnn()).to_dense())
++        x1 = x.clone().requires_grad_()
++        x2 = x.clone().to_mkldnn().requires_grad_()
++        adaptive_avg_pool2d = torch.nn.AdaptiveAvgPool2d(7)
++
++        y1 = adaptive_avg_pool2d(x1).sum()
++        y2 = adaptive_avg_pool2d(x2).to_dense().sum()
++        y1.backward()
++        y2.backward()
++        self.assertEqual(x1.grad, x2.grad.to_dense())
+ 
+-            self._test_serialization(mkldnn_bn, (x.to_mkldnn(),))
+-            self._test_tracing(mkldnn_bn, (x.to_mkldnn(),))
++    def test_batch_norm2d(self):
++        x = torch.randn(64, 3, 35, 45, dtype=torch.float32) * 10
++
++        for train in [True, False]:
++            # TODO: support none affine
++            for affine in [True]:
++                for track_running_stats in [True, False]:
++                    bn = torch.nn.BatchNorm2d(
++                        3,
++                        affine=affine,
++                        track_running_stats=track_running_stats).float().train(train)
++                    if (train or not track_running_stats):
++                        mkldnn_bn = copy.deepcopy(bn)
++                    else:
++                        mkldnn_bn = mkldnn_utils.to_mkldnn(copy.deepcopy(bn))
++                    self.assertEqual(
++                        bn(x),
++                        mkldnn_bn(x.to_mkldnn()).to_dense())
++                    if train and track_running_stats:
++                        self.assertEqual(
++                            bn.running_mean,
++                            mkldnn_bn.running_mean)
++                        self.assertEqual(
++                            bn.running_var,
++                            mkldnn_bn.running_var)
++                    if (not train and track_running_stats):
++                        self._test_serialization(mkldnn_bn, (x.to_mkldnn(),))
++                        self._test_tracing(mkldnn_bn, (x.to_mkldnn(),))
++
++    def test_batch_norm2d_backward(self):
++        x = torch.randn(64, 3, 35, 45, dtype=torch.float32) * 10
++
++        # TODO: support none affine
++        for affine in [True]:
++            for track_running_stats in [True, False]:
++                x1 = x.clone().requires_grad_()
++                x2 = x.clone().to_mkldnn().requires_grad_()
++                bn = torch.nn.BatchNorm2d(
++                    3,
++                    affine=affine,
++                    track_running_stats=track_running_stats).float().train(True)
++                mkldnn_bn = copy.deepcopy(bn)
++                y1 = bn(x1).sum()
++                y2 = mkldnn_bn(x2).to_dense().sum()
++                y1.backward()
++                y2.backward()
++                self.assertEqual(x1.grad, x2.grad.to_dense())
+ 
+     def test_add(self):
+         N = torch.randint(3, 10, (1,)).item()
+@@ -346,6 +471,26 @@ class TestMkldnn(TestCase):
+                     x.to_mkldnn().transpose(dim1, dim2).to_dense(),
+                 )
+ 
++    def test_reshape_backward(self):
++        x = torch.randn(3, 4, 5, dtype=torch.float32) * 10
++        size = (x.size(0), -1)
++
++        x1 = x.clone().requires_grad_()
++        x2 = x.clone().to_mkldnn().requires_grad_()
++
++        in_features = 20
++        out_features = out_features = torch.randint(3, 100, (1,)).item()
++        linear = torch.nn.Linear(in_features, out_features).float()
++
++        y1 = linear(x1.reshape(size)).sum()
++        y2 = linear(x2.reshape(size).to_dense()).sum()
++        y1.backward()
++        y2.backward()
++
++        self.assertEqual(
++            x1.grad,
++            x2.grad.to_dense())
++
+     def test_linear(self):
+         in_features = torch.randint(3, 10, (1,)).item()
+         out_features = torch.randint(3, 100, (1,)).item()
+@@ -361,6 +506,27 @@ class TestMkldnn(TestCase):
+             self._test_serialization(mkldnn_linear, (x.to_mkldnn(),))
+             self._test_tracing(mkldnn_linear, (x.to_mkldnn(),))
+ 
++    '''
++    # we should first expose aten::linear, depend on https://github.com/pytorch/pytorch/pull/20039
++    def test_linear_backward(self):
++        in_features = torch.randint(3, 10, (1,)).item()
++        out_features = torch.randint(3, 100, (1,)).item()
++        x = torch.randn(3, in_features, dtype=torch.float32) * 10
++
++        for bias in [True, False]:
++            x1 = x.clone().requires_grad_()
++            x2 = x.clone().to_mkldnn().requires_grad_()
++            linear = torch.nn.Linear(in_features, out_features).float()
++            mkldnn_linear = copy.deepcopy(linear)
++            y1 = linear(x1).sum()
++            y2 = mkldnn_linear(x2).to_dense().sum()
++            y1.backward()
++            y2.backward()
++            self.assertEqual(x1.grad, x2.grad.to_dense())
++            self.assertEqual(linear.weight.grad, mkldnn_linear.weight.grad)
++            if bias:
++                self.assertEqual(linear.bias.grad, mkldnn_linear.bias.grad)
++    '''
+     def test_softmax(self):
+         x = torch.randn(3, 4, 5, dtype=torch.float32) * 10
+         for dim in range(x.ndim):
+diff --git a/tools/autograd/derivatives.yaml b/tools/autograd/derivatives.yaml
+index 63814bb..979d157 100644
+--- a/tools/autograd/derivatives.yaml
++++ b/tools/autograd/derivatives.yaml
+@@ -1551,6 +1551,18 @@
+ - name: mkldnn_convolution_backward(Tensor self, Tensor grad_output, Tensor weight, int[] padding, int[] stride, int[] dilation, int groups, bool[3] output_mask) -> (Tensor, Tensor, Tensor)
+   grad_output, self, weight: _convolution_double_backward(grads[0], grads[1], grads[2], grad_output, weight, self, stride, padding, dilation, false, std::vector<int64_t>(padding.size(), 0), groups, false, false, false, grad_input_mask)
+ 
++- name: mkldnn_linear(Tensor input, Tensor weight, Tensor? bias=None) -> Tensor
++  input, weight, bias: mkldnn_linear_backward(input, grad, weight, grad_input_mask)
++
++- name: _mkldnn_reshape(Tensor self, int[] shape) -> Tensor
++  self: grad.reshape(self.sizes())
++
++- name: mkldnn_max_pool2d(Tensor self, int[2] kernel_size, int[2] stride=[], int[2] padding=0, int[2] dilation=1, bool ceil_mode=False) -> Tensor
++  self: mkldnn_max_pool2d_backward(grad, result, self, kernel_size, stride, padding, dilation, ceil_mode)
++
++- name: mkldnn_adaptive_avg_pool2d(Tensor self, int[2] output_size) -> Tensor
++  self: mkldnn_adaptive_avg_pool2d_backward(grad, self)
++
+ # fft
+ - name: _fft_with_size(Tensor self, int signal_ndim, bool complex_input, bool complex_output, bool inverse, int[] checked_signal_sizes, bool normalized, bool onesided, int[] output_sizes) -> Tensor
+   self: fft_backward(self, grad, signal_ndim, complex_input, complex_output, inverse, checked_signal_sizes, normalized, onesided, output_sizes)
+diff --git a/torch/csrc/autograd/functions/accumulate_grad.h b/torch/csrc/autograd/functions/accumulate_grad.h
+index bbe9c9e..ec7abeb 100644
+--- a/torch/csrc/autograd/functions/accumulate_grad.h
++++ b/torch/csrc/autograd/functions/accumulate_grad.h
+@@ -39,7 +39,7 @@ struct TORCH_API AccumulateGrad : public Node {
+     if (!variable_grad.defined()) {
+       // under following condition, we can avoid clone()
+       if (!GradMode::is_enabled() && !new_grad.is_sparse() &&
+-          new_grad.is_contiguous() &&
++	  !new_grad.is_mkldnn() && new_grad.is_contiguous() &&
+           new_grad.use_count() <= num_expected_refs) {
+         // first check it is in first-order grad only mode
+         // then check not sparse before is_contiguous
+diff --git a/torch/csrc/utils/tensor_new.cpp b/torch/csrc/utils/tensor_new.cpp
+index 85add73..a3b3242 100644
+--- a/torch/csrc/utils/tensor_new.cpp
++++ b/torch/csrc/utils/tensor_new.cpp
+@@ -335,10 +335,12 @@ void check_base_legacy_new(c10::DispatchKey dispatch_key, at::Layout expected_la
+     TORCH_CHECK(dispatch_key == c10::DispatchKey::CPUTensorId
+                 || dispatch_key == c10::DispatchKey::CUDATensorId
+                 || dispatch_key == c10::DispatchKey::HIPTensorId
++		|| dispatch_key == c10::DispatchKey::MkldnnCPUTensorId
+                 || dispatch_key == c10::XLATensorId(),
+                 "new(): expected DispatchKey: ", c10::DispatchKey::CPUTensorId,
+                 " or ", c10::DispatchKey::CUDATensorId,
+                 " or ", c10::DispatchKey::HIPTensorId,
++		" or ", c10::DispatchKey::MkldnnCPUTensorId,
+                 " or ", c10::DispatchKey::XLATensorId,
+                 " but got: ", dispatch_key);
+   } else if(expected_layout == c10::kSparse) {
+diff --git a/torch/utils/mkldnn.py b/torch/utils/mkldnn.py
+index a9c1855..45da0ec 100644
+--- a/torch/utils/mkldnn.py
++++ b/torch/utils/mkldnn.py
+@@ -1,19 +1,23 @@
+ from __future__ import absolute_import, division, print_function, unicode_literals
+ 
+ import torch
++from torch.nn.parameter import Parameter
+ 
+ 
+ class MkldnnLinear(torch.jit.ScriptModule):
+     def __init__(self, dense_module):
+         super(MkldnnLinear, self).__init__()
+-        self.register_buffer('weight', dense_module.weight.to_mkldnn())
++        self.register_parameter('weight',
++                                Parameter(dense_module.weight.to_mkldnn()))
+         if dense_module.bias is not None:
+-            self.register_buffer('bias', dense_module.bias.to_mkldnn())
++            self.register_parameter('bias',
++                                    Parameter(dense_module.bias.to_mkldnn()))
+         else:
+             # TODO: Remove this once ScriptModule supports registering None buffer
+-            self.register_buffer(
++            self.register_parameter(
+                 'bias',
+-                torch.zeros([dense_module.weight.size(0)], dtype=torch.float).to_mkldnn())
++                Parameter(torch.zeros([dense_module.weight.size(0)],
++                                      dtype=torch.float).to_mkldnn()))
+ 
+     @torch.jit.script_method
+     def __getstate__(self):
+@@ -44,19 +48,23 @@ class MkldnnConv2d(torch.jit.ScriptModule):
+         self.dilation = dense_module.dilation
+         self.groups = dense_module.groups
+ 
+-        self.register_buffer('weight', torch._C._nn.mkldnn_reorder_conv2d_weight(
+-            dense_module.weight.to_mkldnn(),
+-            self.padding,
+-            self.stride,
+-            self.dilation,
+-            self.groups))
++        self.register_parameter('weight',
++                                Parameter(torch._C._nn.mkldnn_reorder_conv2d_weight(
++                                    dense_module.weight.to_mkldnn(),
++                                    self.padding,
++                                    self.stride,
++                                    self.dilation,
++                                    self.groups
++                                )))
+         if dense_module.bias is not None:
+-            self.register_buffer('bias', dense_module.bias.to_mkldnn())
++            self.register_parameter('bias',
++                                    Parameter(dense_module.bias.to_mkldnn()))
+         else:
+             # TODO: Remove this once ScriptModule supports registering None buffer
+-            self.register_buffer(
++            self.register_parameter(
+                 'bias',
+-                torch.zeros([dense_module.weight.size(0)], dtype=torch.float).to_mkldnn())
++                Parameter(torch.zeros([dense_module.weight.size(0)],
++                                      dtype=torch.float).to_mkldnn()))
+ 
+     @torch.jit.script_method
+     def __getstate__(self):
+@@ -91,7 +99,6 @@ class MkldnnBatchNorm2d(torch.jit.ScriptModule):
+     def __init__(self, dense_module):
+         super(MkldnnBatchNorm2d, self).__init__()
+ 
+-        assert(not dense_module.training)
+         assert(dense_module.track_running_stats)
+         assert(dense_module.affine)
+ 
+@@ -100,9 +107,12 @@ class MkldnnBatchNorm2d(torch.jit.ScriptModule):
+         else:
+             self.exponential_average_factor = dense_module.momentum
+         self.eps = dense_module.eps
++        self.training = dense_module.training
+ 
+-        self.register_buffer('weight', dense_module.weight.to_mkldnn())
+-        self.register_buffer('bias', dense_module.bias.to_mkldnn())
++        self.register_parameter('weight',
++                                Parameter(dense_module.weight.to_mkldnn()))
++        self.register_parameter('bias',
++                                Parameter(dense_module.bias.to_mkldnn()))
+         self.register_buffer('running_mean', dense_module.running_mean.to_mkldnn())
+         self.register_buffer('running_var', dense_module.running_var.to_mkldnn())
+ 
+@@ -130,7 +140,7 @@ class MkldnnBatchNorm2d(torch.jit.ScriptModule):
+             self.bias,
+             self.running_mean,
+             self.running_var,
+-            False,  # training
++            self.training,
+             self.exponential_average_factor,
+             self.eps,
+             False,  # cuda_enabled
