@@ -18,11 +18,11 @@ cp -rf ${DOWNLOAD_PATH}/pytorch pytorch
 source bin/activate
 
 # Install requires
-pip3 install ${UPLOAD_PATH}/PyYAML-5.3-cp38-cp38-linux_aarch64.whl
-pip3 install ${UPLOAD_PATH}/numpy-1.18.4-cp38-cp38-linux_aarch64.whl
+pip3 install PyYAML
+pip3 install numpy
 
 # Build PyTorch
-cd pytorch/
+cd ${DOWNLOAD_PATH}/pytorch/
 patch -p1 < ${UPLOAD_PATH}/fj_pytorch.patch
 cd third_party/ideep/
 rm -rf mkl-dnn
