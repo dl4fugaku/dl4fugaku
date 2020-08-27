@@ -1,12 +1,11 @@
 #!/bin/bash
+# download_python.sh
 
 . common.sh
 
-# move download path
-rm -rf ${DOWNLOAD_PATH}/Python-3.8.2 ${DOWNLOAD_PATH}/Python-3.8.2.tgz
 cd ${DOWNLOAD_PATH}
+rm -rf Python-3.8.2 Python-3.8.2.tgz
 
-# Download python
 curl -O https://www.python.org/ftp/python/3.8.2/Python-3.8.2.tgz
 tar zxf Python-3.8.2.tgz
 
