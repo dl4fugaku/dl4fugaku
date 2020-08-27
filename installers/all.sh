@@ -1,5 +1,5 @@
 #!/bin/bash
-rm -rf .local/ down slurm-*
+rm -rf .local/ down fccbuild_v150 slurm-*
 ./download_python.sh || exit 1
 PYTHON_JOB_ID=$(sbatch install_python.sh) || exit 2
 ./download_torch.sh || exit 3
