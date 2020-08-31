@@ -14,7 +14,6 @@ export MAX_JOBS=48
 cd ${PYTORCH_INSTALL_PATH}
 ${PREFIX}/.local/bin/python3.8 -m venv ${VENV_NAME}
 cd ${VENV_NAME}
-cp -rf ${DOWNLOAD_PATH}/pytorch pytorch
 source bin/activate
 
 # Install requires
@@ -35,5 +34,5 @@ cd kits/
 ln -sf xed-install-base-* xed
 cd ../../../../../../
 python3 setup.py install
-ln -sf ${PYTORCH_INSTALL_PATH}/${VENV_NAME}/pytorch/third_party/ideep/mkl-dnn/third_party/build_xed_aarch64/kits/xed/lib/libxed.so ${PREFIX}/.local/lib/libxed.so
+ln -sf ${DOWNLOAD_PATH}/pytorch/third_party/ideep/mkl-dnn/third_party/build_xed_aarch64/kits/xed/lib/libxed.so ${PREFIX}/.local/lib/libxed.so
 
