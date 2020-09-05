@@ -2,13 +2,18 @@
 
 . common.sh
 
-# install_toch.sh
-
 export USE_LAPACK=1
 export USE_NNPACK=0
 export USE_XNNPACK=0
 export USE_NATIVE_ARCH=1
 export MAX_JOBS=48
+
+# Build cmake
+cd ${DOWNLOAD_PATH}/cmake-3.11.4
+./configure --prefix=${PREFIX}/.local
+make clean
+make -j$(nproc)
+make install
 
 # Create venv
 cd ${PYTORCH_INSTALL_PATH}
