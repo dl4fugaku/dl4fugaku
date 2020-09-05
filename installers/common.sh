@@ -1,5 +1,5 @@
 echo "PREFIX: ${PREFIX:=$(pwd)}"
-echo "Compiler dir: ${TCSDS_PATH:=/opt/FJSVstclanga/v1.0.0}"
+echo "Compiler dir: ${TCSDS_PATH:=/opt/FJSVstclanga/v1.1.0}"
 echo "VENV name: ${VENV_NAME:="fccbuild_v150"}"
 
 export DOWNLOAD_PATH=${PREFIX}/down
