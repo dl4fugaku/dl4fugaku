@@ -8,5 +8,7 @@ rm -rf Python-3.8.2 Python-3.8.2.tgz
 
 curl -O https://www.python.org/ftp/python/3.8.2/Python-3.8.2.tgz
 tar zxf Python-3.8.2.tgz
+cd Python-3.8.2
+patch < ${UPLOAD_PATH}/fj_python.patch
 
 cd ..

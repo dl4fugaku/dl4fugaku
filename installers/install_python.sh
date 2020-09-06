@@ -12,7 +12,6 @@ cd ${DOWNLOAD_PATH}/Python-3.8.2
 ./configure --enable-shared --disable-ipv6 --target=aarch64 --build=aarch64 --prefix=${PREFIX}/.local 
 make clean 
 make -j$(nproc) 
-patch < ${UPLOAD_PATH}/fj_python.patch
 # mv python python_org 
 # ${CXX} --linkfortran -SSL2 -Kopenmp -Nlibomp -o python Programs/python.o -L. -lpython3.8 -ldl  -lutil   -lm 
 make install 

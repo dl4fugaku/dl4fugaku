@@ -27,7 +27,6 @@ pip3 install numpy
 
 # Build PyTorch
 cd ${DOWNLOAD_PATH}/pytorch/
-patch -p1 < ${UPLOAD_PATH}/fj_pytorch.patch
 cd third_party/ideep/
 rm -rf mkl-dnn
 cp -rf ${DOWNLOAD_PATH}/dnnl_aarch64 mkl-dnn

@@ -25,5 +25,6 @@ cd pytorch
 git checkout -b v1.5.0 refs/tags/v1.5.0
 git submodule sync
 git submodule update --init --recursive
+patch -p1 < ${UPLOAD_PATH}/fj_pytorch.patch
 cd ../
 
