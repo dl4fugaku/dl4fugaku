@@ -3,12 +3,6 @@
 
 . common.sh
 
-# Download cmake
-cd ${DOWNLOAD_PATH}
-rm -rf cmake*
-curl -O https://cmake.org/files/v3.11/cmake-3.11.4.tar.gz
-tar xvf cmake-3.11.4.tar.gz
-
 # Download dnnl
 cd ${DOWNLOAD_PATH}
 rm -rf dnnl_aarch64

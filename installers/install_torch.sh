@@ -8,13 +8,6 @@ export USE_XNNPACK=0
 export USE_NATIVE_ARCH=1
 export MAX_JOBS=48
 
-# Build cmake
-cd ${DOWNLOAD_PATH}/cmake-3.11.4
-./configure --prefix=${PREFIX}/.local
-make clean
-make -j$(nproc)
-make install
-
 # Create venv
 cd ${PYTORCH_INSTALL_PATH}
 ${PREFIX}/.local/bin/python3.8 -m venv ${VENV_NAME}
