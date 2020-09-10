@@ -15,8 +15,9 @@ cd ${VENV_NAME}
 source bin/activate
 
 # Install requires
-pip3 install PyYAML
-pip3 install numpy
+pip install cython
+pip install PyYAML
+pip install numpy
 
 # Build PyTorch
 cd ${DOWNLOAD_PATH}/pytorch/

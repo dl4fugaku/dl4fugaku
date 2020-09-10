@@ -5,7 +5,6 @@
 cd ${PYTORCH_INSTALL_PATH}/${VENV_NAME}
 source bin/activate
 
-pip install cython
 cd ${DOWNLOAD_PATH}
 cd jpeg-9d/
 ./configure --prefix="${PREFIX}/.local" --enable-shared
