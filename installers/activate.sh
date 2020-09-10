@@ -1,4 +1,3 @@
-#!/bin/bash
 # This file should be SOURCED, not executed!
 # . /path/to/activate.sh
 
