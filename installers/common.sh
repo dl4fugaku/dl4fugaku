@@ -4,7 +4,7 @@ echo "VENV name: ${VENV_NAME:="fccbuild_v150"}"
 
 export DOWNLOAD_PATH=${PREFIX}/down
 export UPLOAD_PATH=${PREFIX}/up
-export PYTORCH_INSTALL_PATH=${PREFIX}
+export PYTORCH_INSTALL_PATH=${PREFIX} # todo(vatai): remove this var
 
 export LD_LIBRARY_PATH=${TCSDS_PATH}/lib64:${PREFIX}/.local/lib:${LD_LIBRARY_PATH}
 export PATH=${PREFIX}/.local/bin:${PATH}
