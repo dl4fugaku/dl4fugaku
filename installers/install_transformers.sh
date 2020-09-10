@@ -12,5 +12,6 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX}/.local ..
 make -j $(nproc)
 cmake -DCMAKE_INSTALL_PREFIX=${PREFIX}/.local -P cmake_install.cmake
 # cmake --install . --target install
-ldconfig -v
+# ldconfig -v
+export PKG_CONFIG_PATH=$(pwd)
 pip install transformers
