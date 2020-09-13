@@ -15,3 +15,6 @@ cmake -DCMAKE_INSTALL_PREFIX=${PREFIX}/.local -P cmake_install.cmake
 # ldconfig -v
 export PKG_CONFIG_PATH=$(pwd)
 pip install transformers
+# rust
+# cat config.toml.example  | sed -e "s+#prefix = .*+prefix = \"$(pwd)\"+" -e 's/#ninja.*/ninja = false/' > config.toml
+
