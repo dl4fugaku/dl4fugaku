@@ -15,7 +15,7 @@ rm -rf Pillow
 git clone https://github.com/python-pillow/Pillow.git
 cd Pillow
 git checkout 6.2.1 -b 6.2.1
-sed -i "s;JPEG_ROOT = None;JPEG_ROOT = \"${PREFIX}/.local/lib\";" setup.py
+sed -i "s;JPEG_ROOT = None;JPEG_ROOT = \"${PREFIX}/lib\";" setup.py
 cd ../
 
 cd ${DOWNLOAD_PATH}
