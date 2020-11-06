@@ -13,8 +13,14 @@ make -j $(nproc)
 cmake -DCMAKE_INSTALL_PREFIX=${PREFIX}/.local -P cmake_install.cmake
 # cmake --install . --target install
 # ldconfig -v
-export PKG_CONFIG_PATH=$(pwd)
-pip install transformers
-# rust
-# cat config.toml.example  | sed -e "s+#prefix = .*+prefix = \"$(pwd)\"+" -e 's/#ninja.*/ninja = false/' > config.toml
+
+cd ${DOWNLOAD_PATH}/rust
+cat config.toml.example  | sed -e "s+#prefix = .*+prefix = \"${PREFIX}/.local\"+" -e 's/#ninja.*/ninja = false/' > config.toml
+echo "Start ./x.py build"
+RUST_BACKTRACE=1 ./x.py build 
+echo "Start ./x.py install"
+RUST_BACKTRACE=1 ./x.py install
+
+#export PKG_CONFIG_PATH=$(pwd)
+#pip install transformers
 
