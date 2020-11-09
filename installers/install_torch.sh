@@ -27,7 +27,7 @@ cp -rf ${DOWNLOAD_PATH}/dnnl_aarch64 mkl-dnn
 cd mkl-dnn/third_party/
 mkdir build_xed_aarch64
 cd build_xed_aarch64/
-../xbyak_translator_aarch64/translator/third_party/xed/mfile.py --shared examples install --cc="${TCSDS_PATH}/bin/fcc -Nclang -Kfast" --cxx="${TCSDS_PATH}/bin/FCC -Nclang -Kfast"
+../xbyak_translator_aarch64/translator/third_party/xed/mfile.py --shared examples install --cc="${CC}" --cxx="${CXX}"
 cd kits/
 ln -sf xed-install-base-* xed
 cd ../../../../../../
