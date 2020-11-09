@@ -2,8 +2,14 @@
 # . /path/to/activate.sh
 
 ABSPATH=$(dirname $(readlink -f $BASH_SOURCE))
-export LD_LIBRARY_PATH=$ABSPATH/.local/lib/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
-module load system/fx700 
-module load FJSVstclanga/1.1.0
-. $ABSPATH/fccbuild_v150/bin/activate
 
+export VENV_PATH=${ABSPATH}/venv
+export PERFIX=${ABSPATH}/opt
+
+export LD_LIBRARY_PATH=$PREFIX/lib/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
+module load system/fx700
+module load FJSVstclanga/1.1.0
+
+[ -d ${VENV_PATH} ] && \
+    source ${VENV_PATH}/bin/activate || \
+    echo "Warning: venv non-existing (if you are installing python, it is ok!)"

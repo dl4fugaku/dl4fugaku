@@ -2,9 +2,6 @@
 
 . common.sh
 
-cd ${PYTORCH_INSTALL_PATH}/${VENV_NAME}
-source bin/activate
-
 cd ${DOWNLOAD_PATH}/sentencepiece
 mkdir build
 cd build

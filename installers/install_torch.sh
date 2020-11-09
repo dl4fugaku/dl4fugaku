@@ -1,20 +1,15 @@
 #!/bin/bash
 
 . common.sh
+${PREFIX}/bin/python3.8 -m venv ${VENV_PATH}
+source ${VENV_PATH}/bin/activate
 
 export USE_LAPACK=1
 export USE_NNPACK=0
 export USE_XNNPACK=0
 export USE_NATIVE_ARCH=1
-export MAX_JOBS=48
+export MAX_JOBS=$(nproc)
 
-# Create venv
-cd ${PYTORCH_INSTALL_PATH}
-${PREFIX}/bin/python3.8 -m venv ${VENV_NAME}
-cd ${VENV_NAME}
-source bin/activate
-
-# Install requires
 pip install cython
 pip install PyYAML
 pip install numpy
