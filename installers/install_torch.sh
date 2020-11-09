@@ -8,10 +8,10 @@ export USE_XNNPACK=0
 export USE_NATIVE_ARCH=1
 export MAX_JOBS=$(nproc)
 
-pip install pip --upgrade
-pip install cython --upgrade
-pip install PyYAML --upgrade
-pip install numpy --upgrade
+python3 -m pip install pip --upgrade
+python3 -m pip install cython --upgrade
+python3 -m pip install PyYAML --upgrade
+python3 -m pip install numpy --upgrade
 
 # Build PyTorch
 cd ${DOWNLOAD_PATH}/pytorch/third_party/ideep/
