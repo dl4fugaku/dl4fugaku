@@ -15,8 +15,7 @@ pip install PyYAML
 pip install numpy
 
 # Build PyTorch
-cd ${DOWNLOAD_PATH}/pytorch/
-cd third_party/ideep/
+cd ${DOWNLOAD_PATH}/pytorch/third_party/ideep/
 rm -rf mkl-dnn
 cp -rf ${DOWNLOAD_PATH}/dnnl_aarch64 mkl-dnn
 cd mkl-dnn/third_party/
