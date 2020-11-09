@@ -1,8 +1,6 @@
 #!/bin/bash
 
 . common.sh
-${PREFIX}/bin/python3.8 -m venv ${VENV_PATH}
-source ${VENV_PATH}/bin/activate
 
 export USE_LAPACK=1
 export USE_NNPACK=0

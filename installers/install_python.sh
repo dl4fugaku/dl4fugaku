@@ -15,4 +15,4 @@ make -j$(nproc)
 # mv python python_org
 # ${CXX} --linkfortran -SSL2 -Kopenmp -Nlibomp -o python Programs/python.o -L. -lpython3.8 -ldl  -lutil   -lm
 make install
-
+${PREFIX}/bin/python3.8 -m venv ${VENV_PATH}
