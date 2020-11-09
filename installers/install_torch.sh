@@ -4,6 +4,8 @@
 ${PREFIX}/bin/python3.8 -m venv ${VENV_PATH}
 source ${VENV_PATH}/bin/activate
 
+cd ${DOWN
+
 export USE_LAPACK=1
 export USE_NNPACK=0
 export USE_XNNPACK=0

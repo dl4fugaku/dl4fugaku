@@ -4,7 +4,7 @@
 . common.sh
 
 # Download dnnl
-cd ${DOWNLOAD_PATH}
+cd ${PREFIX}/Python-3.8.2
 rm -rf dnnl_aarch64
 git clone https://github.com/fujitsu/dnnl_aarch64.git
 cd dnnl_aarch64/
