@@ -1,6 +1,7 @@
 # This file should be SOURCED, not executed!
 # . /path/to/activate.sh
 
+module purge
 ABSPATH=$(dirname $(readlink -f $BASH_SOURCE))
 
 export VENV_PATH=${ABSPATH}/venv
