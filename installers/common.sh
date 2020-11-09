@@ -1,5 +1,3 @@
-echo PREFIX: ${PREFIX:=$(pwd)/.local/opt}
-
 . activate.sh
 
 export DOWNLOAD_PATH=/tmp/emil.vatai/down
