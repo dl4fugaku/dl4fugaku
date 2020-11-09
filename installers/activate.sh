@@ -4,7 +4,7 @@
 ABSPATH=$(dirname $(readlink -f $BASH_SOURCE))
 
 export VENV_PATH=${ABSPATH}/venv
-export PERFIX=${ABSPATH}/opt
+export PREFIX=${ABSPATH}/opt
 export PATCH_DIR=${ABSPATH}/up
 
 module purge
