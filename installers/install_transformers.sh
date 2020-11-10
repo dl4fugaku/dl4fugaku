@@ -15,10 +15,10 @@ cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} -P cmake_install.cmake
 cd ${DOWNLOAD_PATH}/rust
 cat config.toml.example  | sed -e "s+#prefix = .*+prefix = \"${PREFIX}\"+" -e 's/#ninja.*/ninja = false/' > config.toml
 echo "Start ./x.py build"
-RUST_BACKTRACE=1 ./x.py build 
+RUST_BACKTRACE=full ./x.py build 
 echo "Start ./x.py install"
-RUST_BACKTRACE=1 ./x.py install
+RUST_BACKTRACE=full ./x.py install
 
-#export PKG_CONFIG_PATH=$(pwd)
-#pip install transformers
+export PKG_CONFIG_PATH=$(pwd)
+pip install transformers
 
