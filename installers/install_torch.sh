@@ -10,7 +10,7 @@ export MAX_JOBS=$(nproc)
 
 python3 -m pip install pip --upgrade
 python3 -m pip install cython --upgrade
-python3 -m pip install PyYAML --upgrade
+python3 -m pip install pyyaml --upgrade
 python3 -m pip install numpy --upgrade
 
 # Build PyTorch
