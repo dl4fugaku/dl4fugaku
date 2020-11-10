@@ -16,3 +16,8 @@ make -j$(nproc)
 # ${CXX} --linkfortran -SSL2 -Kopenmp -Nlibomp -o python Programs/python.o -L. -lpython3.8 -ldl  -lutil   -lm
 make install
 ${PREFIX}/bin/python3.8 -m venv ${VENV_PATH}
+. ${VENV_PATH}/bin/activate.sh
+
+pip install cython
+pip install PyYAML
+pip install numpy
