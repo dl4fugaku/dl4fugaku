@@ -1,6 +1,6 @@
 . activate.sh
 
-export DOWNLOAD_PATH=/tmp/emil.vatai/down
+export DOWNLOAD_PATH=$(pwd)/tmp/down
 # export UPLOAD_PATH=$(pwd)/up
 
 export PATH=${PREFIX}/bin:${PATH}
