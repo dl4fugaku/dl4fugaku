@@ -1,6 +1,6 @@
 #!/bin/bash -x
 
-. common.sh
+. activate.sh
 
 export USE_LAPACK=1
 export USE_NNPACK=0

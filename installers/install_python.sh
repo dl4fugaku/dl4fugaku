@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. common.sh
+. activate.sh
 
 export OPT=-O3
 export ac_cv_opt_olimit_ok=no
