@@ -6,7 +6,7 @@ export USE_LAPACK=1
 export USE_NNPACK=0
 export USE_XNNPACK=0
 export USE_NATIVE_ARCH=1
-export MAX_JOBS=48
+export MAX_JOBS=$(nproc)
 
 pip install pyyaml
 
