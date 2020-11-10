@@ -8,8 +8,6 @@ export USE_XNNPACK=0
 export USE_NATIVE_ARCH=1
 export MAX_JOBS=$(nproc)
 
-pip install pyyaml
-
 # Build PyTorch
 cd ${DOWNLOAD_PATH}/pytorch/third_party/ideep/
 rm -rf mkl-dnn
