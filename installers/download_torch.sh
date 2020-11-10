@@ -1,7 +1,7 @@
 #!/bin/bash
 # download_torch.sh
 
-. common.sh
+. activate.sh
 
 # Download dnnl
 cd ${DOWNLOAD_PATH}

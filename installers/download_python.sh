@@ -1,7 +1,7 @@
 #!/bin/bash
 # download_python.sh
 
-. common.sh
+. activate.sh
 
 cd ${DOWNLOAD_PATH}
 rm -rf Python-3.8.2 Python-3.8.2.tgz

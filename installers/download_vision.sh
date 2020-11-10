@@ -1,7 +1,7 @@
 #!/bin/bash
 # download_vision.sh
 
-. common.sh
+. activate.sh
 
 # Download jpegsrc
 cd ${DOWNLOAD_PATH}

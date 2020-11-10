@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. common.sh
+. activate.sh
 
 # Download sentencepiece transformers requirements
 cd ${DOWNLOAD_PATH}

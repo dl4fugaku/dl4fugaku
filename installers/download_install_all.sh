@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. common.sh
+. activate.sh
 rm -rf ${PREFIX} ${DOWNLOAD_PATH} ${VENV_PATH} slurm-*
 
 PYTHON_DL_JOB_ID=$(sbatch ./download_python.sh) || exit 1
