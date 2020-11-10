@@ -19,7 +19,6 @@ cd build_xed_aarch64/
 cd kits/
 ln -sf xed-install-base-* xed
 cd ../../../../../../
-. ${PREFIX}/../activate.sh
 python3 setup.py install
 ln -sf ${DOWNLOAD_PATH}/pytorch/third_party/ideep/mkl-dnn/third_party/build_xed_aarch64/kits/xed/lib/libxed.so ${PREFIX}/lib/libxed.so
 
