@@ -11,3 +11,7 @@ TORCH_JOB_ID=$(sbatch -d afterok:${TORCH_DL_JOB_ID##* } install_torch.sh) || exi
 
 VISION_DL_JOB_ID=$(sbatch ./download_vision.sh) || exit 5
 VISION_JOB_ID=$(sbatch -d afterok:${TORCH_JOB_ID##* },${VISION_DL_JOB_ID##* } install_vision.sh) || exit 6
+
+TRANSFORMER_DL_JOB_ID=$(sbatch ./download_transformer.sh) || exit 7
+TRANSFORMER_JOB_ID=$(sbatch -d afterok:${VISION_JOB_ID##* },${TRANSFORMER_DL_JOB_ID##* } install_transformer.sh) || exit 8
+
