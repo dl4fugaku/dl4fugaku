@@ -1,6 +1,7 @@
 #!/bin/bash
 
 . common.sh
+. activate.sh
 
 cd ${DOWNLOAD_PATH}/jpeg-9d/
 ./configure --prefix="${PREFIX}" --enable-shared
