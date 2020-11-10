@@ -9,5 +9,5 @@ PYTHON_JOB_ID=$(sbatch -d afterok:${PYTHON_DL_JOB_ID##* } install_python.sh) || 
 TORCH_DL_JOB_ID=$(sbatch ./download_torch.sh) || exit 3
 TORCH_JOB_ID=$(sbatch -d afterok:${TORCH_DL_JOB_ID##* } install_torch.sh) || exit 4
 
-# VISION_DL_JOB_ID=$(sbatch ./download_vision.sh) || exit 5
-# VISION_JOB_ID=$(sbatch -d afterok:${TORCH_JOB_ID##* },${VISION_DL_JOB_ID##* } install_vision.sh) || exit 6
+VISION_DL_JOB_ID=$(sbatch ./download_vision.sh) || exit 5
+VISION_JOB_ID=$(sbatch -d afterok:${TORCH_JOB_ID##* },${VISION_DL_JOB_ID##* } install_vision.sh) || exit 6
