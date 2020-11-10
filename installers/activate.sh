@@ -18,11 +18,9 @@ else
     echo "Warning: venv non-existing (if you are installing python, it is ok!)"
 fi
 
-export DOWNLOAD_PATH=$(pwd)/tmp/down
-# export UPLOAD_PATH=$(pwd)/up
-
 export PATH=${PREFIX}/bin:${PATH}
 
+export DOWNLOAD_PATH=/tmp/down
 export fcc_ENV="-Nclang -Kfast"
 export FCC_ENV="-Nclang -Kfast"
 export CC=fcc
