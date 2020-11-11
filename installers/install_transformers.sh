@@ -15,9 +15,13 @@ export PKG_CONFIG_PATH=$(pwd)
 pip install ninja
 
 cd ${DOWNLOAD_PATH}/rust
-cat config.toml.example  | sed -e "s;#prefix = .*;prefix = \"${PREFIX}\";"  > config.toml
+cat config.toml.example  | sed \
+	-e "s;#prefix = .*;prefix = \"${PREFIX}\";" \
+	-e "s;#sysconfdir = .*;sysconfdir = \"${PREFIX}/etc\";" \
+	> config.toml
 # ./x.py build 
 ./x.py install
+./x.py install cargo
 
 pip install transformers
 
