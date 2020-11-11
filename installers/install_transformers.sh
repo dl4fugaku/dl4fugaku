@@ -8,21 +8,16 @@ cd build
 cmake -DCMAKE_INSTALL_PREFIX:PATH=${PREFIX} ..
 make -j $(nproc)
 cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} -P cmake_install.cmake
+export PKG_CONFIG_PATH=$(pwd)
 # cmake --install . --target install
 # ldconfig -v
 
-cd ${DOWNLOAD_PATH}/rust
-cat config.toml.example  | sed \
-	-e "s;#prefix = .*;prefix = \"${PREFIX}\";" \
-	-e 's;#ninja.*;ninja = false;' \
-	-e "s;#ar =.*;ar = \"$(which ar)\";" \
-	> config.toml
-echo "Start ./x.py build"
-echo $PATH
-AR=ar RUST_BACKTRACE=full ./x.py build 
-echo "Start ./x.py install"
-AR=ar RUST_BACKTRACE=full ./x.py install
+pip install ninja
 
-export PKG_CONFIG_PATH=$(pwd)
+cd ${DOWNLOAD_PATH}/rust
+cat config.toml.example  | sed -e "s;#prefix = .*;prefix = \"${PREFIX}\";"  > config.toml
+# ./x.py build 
+./x.py install
+
 pip install transformers
 

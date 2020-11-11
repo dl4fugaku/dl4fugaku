@@ -18,6 +18,7 @@ make install
 ${PREFIX}/bin/python3.8 -m venv ${VENV_PATH}
 . ${VENV_PATH}/bin/activate
 
+pip install wheel
 pip install cython
 pip install PyYAML
 pip install numpy
