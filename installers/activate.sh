@@ -25,6 +25,7 @@ export fcc_ENV="-Nclang -Kfast"
 export FCC_ENV="-Nclang -Kfast"
 export CC=fcc
 export CXX=FCC
+export AR=ar
 
 [ ! -d ${DOWNLOAD_PATH} ] && mkdir -p ${DOWNLOAD_PATH}
 [ ! -d ${PREFIX} ] && mkdir -p ${PREFIX}
