@@ -28,4 +28,4 @@ export CXX=FCC
 export AR=ar
 
 [ ! -d ${DOWNLOAD_PATH} ] && mkdir -p ${DOWNLOAD_PATH}
-[ ! -d ${PREFIX} ] && mkdir -p ${PREFIX}
+[ ! -d ${PREFIX} ] && mkdir -p ${PREFIX}/etc
