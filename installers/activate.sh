@@ -23,7 +23,7 @@ fi
 
 export PATH=${PREFIX}/bin:${PATH}
 
-export DOWNLOAD_PATH=${ROOT_DIR}/build_and_download_dir
+export DOWNLOAD_PATH=/tmp/$(whoami)/download_and_build_dir
 export fcc_ENV="-Nclang -Kfast"
 export FCC_ENV="-Nclang -Kfast"
 export CC=fcc
