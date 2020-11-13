@@ -7,9 +7,12 @@ export VENV_PATH=${ROOT_DIR}/venv
 export PREFIX=${ROOT_DIR}/opt
 export PATCH_DIR=${ROOT_DIR}/up
 
-module purge
-module load system/fx700
-module load FJSVstclanga/1.1.0
+if [[ $(hostname) == *r-ccs.riken.jp ]]; then
+	module purge
+	module load system/fx700
+	module load FJSVstclanga/1.1.0
+fi
+
 export LD_LIBRARY_PATH=$PREFIX/lib/${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
 
 if [ -d "${VENV_PATH}" ]; then
@@ -20,7 +23,7 @@ fi
 
 export PATH=${PREFIX}/bin:${PATH}
 
-export DOWNLOAD_PATH=${ROOT_DIR}/build_and_download_dir
+export DOWNLOAD_PATH=/tmp/$(whoami)/download_and_build_dir
 export fcc_ENV="-Nclang -Kfast"
 export FCC_ENV="-Nclang -Kfast"
 export CC=fcc
