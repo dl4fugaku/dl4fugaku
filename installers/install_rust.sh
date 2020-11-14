@@ -3,6 +3,8 @@
 . activate.sh
 
 # Download
+cd ${DOWNLOAD_PATH}
+rm -rf rust
 git clone https://github.com/rust-lang/rust.git
 
 # Build and install
