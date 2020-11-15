@@ -14,6 +14,9 @@ cd ${DOWNLOAD_PATH}/rust
 cat config.toml.example  | sed \
 	-e "s;#prefix = .*;prefix = \"${PREFIX}\";" \
 	-e "s;#sysconfdir = .*;sysconfdir = \"${PREFIX}/etc\";" \
+	-e "s;#ninja = .*;ninja = true;" \
+	-e "s;#docs = .*;docs = false;" \
+	-e "s;#compiler-docs = .*;compiler-docs = false;" \
 	> config.toml
 ./x.py install
 ./x.py install cargo
