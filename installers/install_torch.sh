@@ -39,5 +39,5 @@ ln -sf xed-install-base-* xed
 
 cd ${DOWNLOAD_PATH}/pytorch
 python setup.py install
-cp ${DOWNLOAD_PATH}/pytorch/third_party/ideep/mkl-dnn/third_party/build_xed_aarch64/kits/xed/lib/libxed.so ${PREFIX}/lib/libxed.so
+cp -L ${DOWNLOAD_PATH}/pytorch/third_party/ideep/mkl-dnn/third_party/build_xed_aarch64/kits/xed/lib/libxed.so ${PREFIX}/lib/libxed.so
 
