@@ -1,3 +1,5 @@
+# Installing Pytorch
+
 These are notes in addition to the README.md of Fujitsu's [github repo](https://github.com/fujitsu/pytorch/tree/fujitsu_v1.7.0_for_a64fx/scripts/fujitsu). 
 My insall process looks something like this:
 
@@ -13,3 +15,8 @@ sed -i -e 's/rscgrp=ai-default/rscgrp=eap-small/' submit_*.sh opennmt_build_pack
 pjsub submit_build.sh
 # and then follow readme
 ```
+
+## Notes on the `sed`s
+- First `sed` substitutes the magic command which evaluates to the current directory of `env.src`.
+- Second `sed` sets the path to the compiler. This needs to be the path **on the compute node** (not the login node).
+- Third `sed` sets the resource group.  Run `pjstat --rsc` to see the resource groups.
