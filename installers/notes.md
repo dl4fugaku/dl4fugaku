@@ -1,6 +1,7 @@
 # Installing Pytorch
 
 These are notes in addition to the README.md of Fujitsu's [github repo](https://github.com/fujitsu/pytorch/tree/fujitsu_v1.7.0_for_a64fx/scripts/fujitsu). 
+You should primarily follow the README.md, but the idea is to just copy paste these commands and make everything work like magic (which reminds me that I should put these in a bash script).
 My insall process looks something like this:
 
 ```shell
