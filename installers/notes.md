@@ -18,6 +18,17 @@ pjsub submit_build.sh
 ```
 
 ## Notes on the `sed`s
+
 - First `sed` substitutes the magic command which evaluates to the current directory of `env.src`.
 - Second `sed` sets the path to the compiler. This needs to be the path **on the compute node** (not the login node).
 - Third `sed` sets the resource group.  Run `pjstat --rsc` to see the resource groups.
+
+# If everything worked
+
+If the jobs complete successfully, you probably want a single file which will activate the venv created by the install scripts.  Put this file in the `<pytorch-fujitsu-repo>/scripts/fujitsu` dir (where the install scripts are):
+```shell
+cat data/pytorch-fujitsu/scripts/fujitsu/activate.sh 
+PREFIX="$( cd "$( dirname "${BASH_SOURCE[0]}" )" > /dev/null ; pwd )"
+source ${PREFIX}/env.src
+source ${PREFIX}/fccbuild_v170/bin/activate
+```
