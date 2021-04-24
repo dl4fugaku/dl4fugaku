@@ -5,6 +5,7 @@ Main repo to keep scripts, dockerfiles, wiki, etc
 Use the following command:
 ```
 export PATH=/home/apps/oss/PyTorch-1.7.0/bin:$PATH
+export LD_LIBRARY_PATH=/home/apps/oss/PyTorch-1.7.0/lib:$LD_LIBRARY_PATH
 ```
 
 ## Installing Pytorch from Fujitsu repo (obsolete)
