@@ -66,3 +66,8 @@ cpubind: 4 5 6 7
 nodebind: 4 5 6 7 
 membind: 4 5 6 7 
 ```
+
+If you need to rune 1 core on each CMG: 
+```
+OMP_NUM_THREADS=4 numactl -l -C 12,24,36,48 <cmd>
+```
