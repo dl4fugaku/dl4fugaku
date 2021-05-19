@@ -50,7 +50,7 @@ Python (especially pytorch) should be run like this:
 $ LD_PRELOAD=libtcmalloc.so python # ...
 ```
 
-## [Running multiple MPI processes on a single node](multimpi)
+## Running multiple MPI processes on a single node
 It can happen that one wishes to run e.g. 1 MPI process per CMG, which
 means 4 MPI processes per node.  To do this one needs to specify both
 number of nodes and number of MPI processes.  As an example, to run a
@@ -83,7 +83,8 @@ allocates fast temporary storage (SSDs) shared between 16 nodes.
 ## NUMA commands
 Disclaimer: This is generally discouraged, but can be useful for
 experimenting.  To achieve something similar you need to run [multiple
-MPI processes on a single node](#multimpi).
+MPI processes on a single
+node](#running-multiple-mpi-processes-on-a-single-node).
 
 You can use this `run_on_cmg` to run on a single CMG:
 ```
