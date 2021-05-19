@@ -82,8 +82,8 @@ allocates fast temporary storage (SSDs) shared between 16 nodes.
 
 ## NUMA commands
 Disclaimer: This is generally discouraged, but can be useful for
-experimenting.  To achieve something similar you need to run [multiple
-MPI processes on a single
+experimenting.  To achieve something similar you need to [Running
+multiple MPI processes on a single
 node](#running-multiple-mpi-processes-on-a-single-node).
 
 You can use this `run_on_cmg` to run on a single CMG:
