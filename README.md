@@ -44,7 +44,10 @@ FLIB_AFFINITY_ON_PROCESS=24,25,26,27,28,29,30,31,32,33,34,35
 ## Faster storage
 The `pjsub --llio sharedtmp-size=80Gi` `pjsub` switch or equivalently
 `#PJM --llio sharedtmp-size=80Gi` inside the submission scripts
-allocates fast temporary storage (SSDs) shared between 16 nodes.
+allocates fast temporary storage (SSDs) shared between all alocated nodes.
+
+If you do `--llio sharedtmp-size=XX` then the llio storage is `/share`, 
+while for `--llio localtmp-size=XX` it is `/local`.
 
 ## NUMA commands
 Disclaimer: This is generally discouraged, but can be useful for
