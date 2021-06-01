@@ -21,10 +21,12 @@ NUM_PROCS=$(expr ${NUM_NODES} \* ${NUM_GPUS_PER_NODE})
 
 MPIOPTS="-np ${NUM_PROCS} -map-by ppr:${NUM_GPUS_PER_NODE}:node -mca pml ob1 -mca btl ^openib -mca btl_tcp_if_include bond0"
 
-mpirun ${MPIOPTS} bash -c "env; \
+mpirun ${MPIOPTS} \
+       bash -c "\
        NCCL_SOCKET_IFNAME=eth0 \
        WORLD_SIZE=\$OMPI_COMM_WORLD_SIZE \
        RANK=\$OMPI_COMM_WORLD_RANK \
        MASTER_ADDR=${HOSTNAME} \
        MASTER_PORT=1234 \
-       python3 torch_distributed_mpi.py"
+       python3 torch_distributed.py \
+       "
