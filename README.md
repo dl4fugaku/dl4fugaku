@@ -76,6 +76,12 @@ If you need to rune 1 core on each CMG:
 OMP_NUM_THREADS=4 numactl -l -C 12,24,36,48 <cmd>
 ```
 
+### Interleaved memory
+Usually 4PPN (processes per node) i.e. one process per CMG is optimal, however some apps benefit from 1PPN.  In this situation you might want to experiment iwht interleaved memory:
+```
+mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
+```
+
 ## Installing Pytorch from Fujitsu repo (obsolete)
 
 These are notes in addition to the README.md of Fujitsu's [github repo](https://github.com/fujitsu/pytorch/tree/fujitsu_v1.7.0_for_a64fx/scripts/fujitsu). 
