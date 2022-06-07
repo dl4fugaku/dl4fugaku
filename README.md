@@ -44,7 +44,7 @@ FLIB_AFFINITY_ON_PROCESS=24,25,26,27,28,29,30,31,32,33,34,35
 ## Faster storage
 The `pjsub --llio sharedtmp-size=80Gi` `pjsub` switch or equivalently
 `#PJM --llio sharedtmp-size=80Gi` inside the submission scripts
-allocates fast temporary storage (SSDs) shared between all alocated nodes.
+allocates fast temporary storage (SSDs) shared between all allocated nodes.
 
 If you do `--llio sharedtmp-size=XX` then the llio storage is `/share`, 
 while for `--llio localtmp-size=XX` it is `/local`.
@@ -77,7 +77,7 @@ OMP_NUM_THREADS=4 numactl -l -C 12,24,36,48 <cmd>
 ```
 
 ### Interleaved memory
-Usually 4PPN (processes per node) i.e. one process per CMG is optimal, however some apps benefit from 1PPN.  In this situation you might want to experiment iwht interleaved memory:
+Usually 4PPN (processes per node) i.e. one process per CMG is optimal, however some apps benefit from 1PPN.  In this situation you might want to experiment with interleaved memory:
 ```
 mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
 ```
