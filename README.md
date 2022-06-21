@@ -10,6 +10,11 @@ export LD_LIBRARY_PATH=/home/apps/oss/PyTorch-1.7.0/lib:$LD_LIBRARY_PATH
 
 # Notes
 
+## FJ hugepages with non-FJ compilers
+```
+-Wl,-T/opt/FJSVxos/mmm/util/bss-2mb.lds -L/opt/FJSVxos/mmm/lib64 -lmpg
+```
+
 ## `tcmalloc` brings better performance
 Python (especially pytorch) should be run like this:
 ```
