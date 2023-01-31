@@ -77,14 +77,20 @@ membind: 4 5 6 7
 ```
 
 If you need to rune 1 core on each CMG: 
-```
+```bash
 OMP_NUM_THREADS=4 numactl -l -C 12,24,36,48 <cmd>
 ```
 
 ### Interleaved memory
 Usually 4PPN (processes per node) i.e. one process per CMG is optimal, however some apps benefit from 1PPN.  In this situation you might want to experiment with interleaved memory:
-```
+```bash
 mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
+```
+
+## Installing `mpi4py`
+
+```bash
+CC=mpifcc CXX=mpiFCC python -m pip install mpi4py
 ```
 
 ## Installing/compiling Pytorch from source (Fujitsu repo)
