@@ -93,6 +93,9 @@ mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
 CC=mpifcc CXX=mpiFCC python -m pip install mpi4py
 ```
 
+## Getting IP of nodes
+Use `pjshowip`.
+
 ## Installing/compiling Pytorch from source (Fujitsu repo)
 
 https://github.com/fujitsu/pytorch/wiki/PyTorch-DNNL_aarch64-build-manual-for-FUJITSU-Software-Compiler-Package-(PyTorch-v1.7.0)
