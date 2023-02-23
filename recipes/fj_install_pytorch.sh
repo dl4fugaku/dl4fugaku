@@ -2,15 +2,21 @@
 
 set -e
 
-OLD_PWD=$(pwd)
+[ $# -lt 1 ] && echo "Usage: $0 <outdir> (if it ends with -Kfast )"
+
 ROOT=$(pwd)/$1
 
-test $# -eq 1
+read -p "${ROOT} will be deleted! Are you sure? " -n 1 -r
+echo    # (optional) move to a new line
+if [[ ! $REPLY =~ ^[Yy]$ ]]
+then
+    [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
+fi
 
-rm -r ${ROOT}
+rm -fr ${ROOT}
 mkdir ${ROOT}
 
-cd $ROOT
+pushd $ROOT
 
 git clone https://github.com/fujitsu/pytorch.git
 cd pytorch
@@ -18,7 +24,7 @@ git checkout fujitsu_v1.10.1_for_a64fx
 
 cd scripts/fujitsu
 
-sed '/https:\/\/github.com/a\ \ \ \ sed -e s/3.9.15+/3.9.15+fj/ ${DOWNLOAD_PATH}/${PYTHON_DIR}/Include/patchlevel.h' 1_python.sh
+sed -ie '/https:\/\/github.com/a\ \ \ \ sed -ie s/3.9.16+/3.9.16+fj/ ${DOWNLOAD_PATH}/${PYTHON_DIR}/Include/patchlevel.h' 1_python.sh
 sed -ie "s!#\\(TCSDS_PATH=.*FX1\\)!\\1!g"       env.src
 sed -ie "s!\\(TCSDS_PATH=.*FX7\\)!#\\1!"        env.src
 sed -ie "s!\\(VENV_PATH=\\).*!\\1${ROOT}/venv!" env.src
@@ -29,8 +35,9 @@ fi
 
 cat << EOF | pjsub
 #!/usr/bin/bash
+#PJM -N "fj_build_pytorch"
 #PJM -L "rscgrp=small"
-#PJM -L elapse=08:00:00
+#PJM -L "elapse=08:00:00"
 #PJM -L "node=1"
 #PJM --mpi "proc=1"
 #PJM -j
@@ -50,4 +57,4 @@ bash 7_horovod.sh
 bash 8_libtcmalloc.sh
 EOF
 
-cd ${OLD_PWD}
+popd
