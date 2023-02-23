@@ -10,10 +10,5 @@ There are two main problems with it:
 
 ## Malformed version string causes doesn't allow `datasets` to be loaded
 
-The output of `python -c "import sys; print(sys.version)"` is:
-
-    3.9.15+ (heads/3.9:3b81c13ac3, Dec  7 2022, 00:35:29)
-    [Clang 7.1.0 ]
-
-Here `3.9.15+` is not accepted by `packaging.version` properly and when loading `datasets` the comparison of python versions fails.
+The output of `python -c "import platform; print(platform.python_version())"` is `3.9.15+` and this is not parsed by `packaging.version` properly so when loading `datasets` the comparison of python versions fails (see `__init__.py` of `datasets`).
 The solution is probably to modify the `PY_VERSION` in `Include/patchlevel.h` before compiling (suggestion would be to modify it to `3.9.15+fj`).
