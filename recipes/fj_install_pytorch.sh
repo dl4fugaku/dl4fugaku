@@ -2,7 +2,7 @@
 
 set -e
 
-[ $# -lt 1 ] && echo "Usage: $0 <outdir> (if it ends with -Kfast )"
+[ $# -lt 1 ] && echo "Usage: $0 <outdir> (if it ends with -Kfast )" && exit -1
 
 ROOT=$(pwd)/$1
 
