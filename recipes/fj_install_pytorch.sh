@@ -2,7 +2,7 @@
 
 set -e
 
-[ $# -lt 1 ] && echo "Usage: $0 <outdir> (if it ends with -Kfast )" && exit -1
+[ $# -lt 1 ] && echo "Usage: [KFAST=true] $0 <outdir> (if KFAST=true compile with -Kfast option)" && exit -1
 
 ROOT=$(pwd)/$1
 
@@ -29,7 +29,7 @@ sed -ie "s!#\\(TCSDS_PATH=.*FX1\\)!\\1!g"       env.src
 sed -ie "s!\\(TCSDS_PATH=.*FX7\\)!#\\1!"        env.src
 sed -ie "s!\\(VENV_PATH=\\).*!\\1${ROOT}/venv!" env.src
 sed -ie "s!\\(PREFIX=\\).*!\\1${ROOT}/opt!"     env.src 
-if [ ${KFAST} = "true" ]; then
+if [[ ${KFAST} = "true" ]]; then
   sed -ie "s!CFLAGS=-O3 CXXFLAGS=-O3!CFLAGS=-Kfast!"     5_pytorch.sh
 fi
 
