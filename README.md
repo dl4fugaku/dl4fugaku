@@ -8,6 +8,10 @@ export PATH=/home/apps/oss/PyTorch-1.7.0/bin:$PATH
 export LD_LIBRARY_PATH=/home/apps/oss/PyTorch-1.7.0/lib:$LD_LIBRARY_PATH
 ```
 
+# Having a hierarchy of `venv`s
+
+This might hold the answer: https://stackoverflow.com/a/72972198/568735
+
 # Notes
 
 ## FJ hugepages with non-FJ compilers
