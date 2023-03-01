@@ -10,7 +10,7 @@ source fj_pytorch_build_funcs.src
 
 JOBNAME=$(basename $0)
 TARFILE=$1
-ELAPSE=00:25:00
+ELAPSE=08:00:00
 
 echo "This file will be created: ${TARFILE}"
 are_you_sure
@@ -39,11 +39,11 @@ prep_fj_repo_2pushd \${PJM_LOCALTMP} ${KFAST}
 bash 1_python.sh
 bash 3_venv.sh
 ### 20min mark ###
-# bash 4_numpy_scipy.sh
-# bash 5_pytorch.sh
-# bash 6_vision.sh
-# bash 7_horovod.sh
-# bash 8_libtcmalloc.sh
+bash 4_numpy_scipy.sh
+bash 5_pytorch.sh
+bash 6_vision.sh
+bash 7_horovod.sh
+bash 8_libtcmalloc.sh
 
 popd
 popd
