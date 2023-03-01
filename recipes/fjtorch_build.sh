@@ -4,6 +4,8 @@ set -e
 
 [ $# -lt 1 ] && echo "Usage: [KFAST=true] $0 <outdir> (if KFAST=true compile with -Kfast option)" && exit -1
 
+ELAPSE=08:00:00
+JOBNAME=$(basename $0)
 ROOT=$(pwd)/$1
 
 read -p "${ROOT} will be deleted! Are you sure? " -n 1 -r
@@ -24,20 +26,21 @@ git checkout fujitsu_v1.10.1_for_a64fx
 
 cd scripts/fujitsu
 
-sed -ie '/https:\/\/github.com/a\ \ \ \ sed -ie s/3.9.16+/3.9.16+fj/ ${DOWNLOAD_PATH}/${PYTHON_DIR}/Include/patchlevel.h' 1_python.sh
-sed -ie "s!#\\(TCSDS_PATH=.*FX1\\)!\\1!g"       env.src
-sed -ie "s!\\(TCSDS_PATH=.*FX7\\)!#\\1!"        env.src
-sed -ie "s!\\(VENV_PATH=\\).*!\\1${ROOT}/venv!" env.src
-sed -ie "s!\\(PREFIX=\\).*!\\1${ROOT}/opt!"     env.src 
+sed -i -e '/https:\/\/github.com/a\ \ \ \ sed -i -e s/3.9.16+/3.9.16+fj/ ${DOWNLOAD_PATH}/${PYTHON_DIR}/Include/patchlevel.h' 1_python.sh
+sed -i -e "s!#\\(TCSDS_PATH=.*FX1\\)!\\1!g"       env.src
+sed -i -e "s!\\(TCSDS_PATH=.*FX7\\)!#\\1!"        env.src
+sed -i -e "s!\\(VENV_PATH=\\).*!\\1${ROOT}/venv!" env.src
+sed -i -e "s!\\(PREFIX=\\).*!\\1${ROOT}/opt!"     env.src 
 if [[ ${KFAST} = "true" ]]; then
-  sed -ie "s!CFLAGS=-O3 CXXFLAGS=-O3!CFLAGS=-Kfast!"     5_pytorch.sh
+  echo "USING KFAST!!!"
+  sed -i -e "s!CFLAGS=-O3 CXXFLAGS=-O3!CFLAGS=-Kfast!"     5_pytorch.sh
 fi
 
 cat << EOF | pjsub
 #!/usr/bin/bash
-#PJM -N "fj_build_pytorch"
+#PJM -N "${JOBNAME}"
 #PJM -L "rscgrp=small"
-#PJM -L "elapse=08:00:00"
+#PJM -L "elapse=${ELAPSE}"
 #PJM -L "node=1"
 #PJM --mpi "proc=1"
 #PJM -j

@@ -1,0 +1,32 @@
+#!/usr/bin/bash
+
+are_you_sure () {
+    read -p "Are you sure (y/n)? " -n 1 -r
+    echo    # (optional) move to a new line
+    if [[ ! $REPLY =~ ^[Yy]$ ]]
+    then
+        [[ "$0" = "$BASH_SOURCE" ]] && exit 1 || return 1 # handle exits from shell or function but don't exit interactive shell
+    fi
+}
+
+prep_fj_repo_2pushd () {
+    [ $# -lt 1 ] && echo "Usage: $0 <root> <kfast>" && exit -1
+    ROOT=$1
+    KFAST=$2
+    git clone https://github.com/fujitsu/pytorch.git
+    pushd pytorch
+    git checkout fujitsu_v1.10.1_for_a64fx
+    
+    pushd scripts/fujitsu
+    
+    sed -i -e '/https:\/\/github.com/a\ \ \ \ sed -i -e s/3.9.16+/3.9.16+fj/ ${DOWNLOAD_PATH}/${PYTHON_DIR}/Include/patchlevel.h' 1_python.sh
+    sed -i -e "s!#\\(TCSDS_PATH=.*FX1\\)!\\1!g"       env.src
+    sed -i -e "s!\\(TCSDS_PATH=.*FX7\\)!#\\1!"        env.src
+    sed -i -e "s!\\(VENV_PATH=\\).*!\\1${ROOT}/venv!" env.src
+    sed -i -e "s!\\(PREFIX=\\).*!\\1${ROOT}/opt!"     env.src 
+    if [[ ${KFAST} = "true" ]]; then
+      echo "USING KFAST!!!"
+      sed -i -e "s!CFLAGS=-O3 CXXFLAGS=-O3!CFLAGS=-Kfast!"     5_pytorch.sh
+    fi
+}
+
