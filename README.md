@@ -94,7 +94,7 @@ mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
 ## Installing `mpi4py`
 
 ```bash
-CC=mpifcc CXX=mpiFCC python -m pip install mpi4py
+env MPICC=mpifcc pip install mpi4py --no-cache-dir
 ```
 
 And before running:
