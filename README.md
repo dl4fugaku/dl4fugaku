@@ -1,13 +1,6 @@
 # dl4fugaku
 Main repo to keep scripts, dockerfiles, wiki, etc
 
-# Activating pytorch on Fugaku
-Use the following command:
-```
-export PATH=/home/apps/oss/PyTorch-1.7.0/bin:$PATH
-export LD_LIBRARY_PATH=/home/apps/oss/PyTorch-1.7.0/lib:$LD_LIBRARY_PATH
-```
-
 # Having a hierarchy of `venv`s
 
 This might hold the answer: https://stackoverflow.com/a/72972198/568735
@@ -26,6 +19,7 @@ $ LD_PRELOAD=libtcmalloc.so python # ...
 ```
 
 ## Running multiple MPI processes on a single node
+
 It can happen that one wishes to run e.g. 1 MPI process per CMG, which
 means 4 MPI processes per node.  To do this one needs to specify both
 number of nodes and number of MPI processes.  As an example, to run a
@@ -39,6 +33,7 @@ script, lines similar to these :
 ```
 
 ### Checking the layout of cores per MPI process
+
 Try something like this:
 ```
 LOGIN_NODE $ pjsub --interact --llio sharedtmp-size=80Gi --mpi "proc=4" -L "node=1,rscunit=rscunit_ft01,rscgrp=int,elapse=2:00:00" --sparam wait-time=1000
@@ -51,6 +46,7 @@ FLIB_AFFINITY_ON_PROCESS=24,25,26,27,28,29,30,31,32,33,34,35
 ```
 
 ## Faster storage
+
 The `pjsub --llio sharedtmp-size=80Gi` `pjsub` switch or equivalently
 `#PJM --llio sharedtmp-size=80Gi` inside the submission scripts
 allocates fast temporary storage (SSDs) shared between all allocated nodes.
@@ -58,7 +54,9 @@ allocates fast temporary storage (SSDs) shared between all allocated nodes.
 If you do `--llio sharedtmp-size=XX` then the llio storage is `/share`, 
 while for `--llio localtmp-size=XX` it is `/local`.
 
+
 ## NUMA commands
+
 Disclaimer: This is generally discouraged, but can be useful for
 experimenting.  To achieve something similar you need to [Running
 multiple MPI processes on a single
@@ -80,12 +78,14 @@ nodebind: 4 5 6 7
 membind: 4 5 6 7 
 ```
 
-If you need to rune 1 core on each CMG: 
+If you need to run 1 core on each CMG: 
 ```bash
 OMP_NUM_THREADS=4 numactl -l -C 12,24,36,48 <cmd>
 ```
 
+
 ### Interleaved memory
+
 Usually 4PPN (processes per node) i.e. one process per CMG is optimal, however some apps benefit from 1PPN.  In this situation you might want to experiment with interleaved memory:
 ```bash
 mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
@@ -106,7 +106,3 @@ Source: https://docs.fugaku.r-ccs.riken.jp/ja/user_guides/lang_0.3/ScriptingLang
 
 ## Getting IP of nodes
 Use `pjshowip`.
-
-## Installing/compiling Pytorch from source (Fujitsu repo)
-
-https://github.com/fujitsu/pytorch/wiki/PyTorch-DNNL_aarch64-build-manual-for-FUJITSU-Software-Compiler-Package-(PyTorch-v1.7.0)
