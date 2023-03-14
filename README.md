@@ -91,18 +91,5 @@ Usually 4PPN (processes per node) i.e. one process per CMG is optimal, however s
 mpirun -mca plm_ple_memory_allocation_policy interleave_all app args
 ```
 
-## Installing `mpi4py`
-
-```bash
-env MPICC=mpifcc pip install mpi4py --no-cache-dir
-```
-
-And before running:
-```
-export LD_PRELOAD=/usr/lib/FJSVtcs/ple/lib64/libpmix.so
-mpiexec -n 8 python3 mpi-sample.py # for example
-```
-Source: https://docs.fugaku.r-ccs.riken.jp/ja/user_guides/lang_0.3/ScriptingLanguage/PythonEnvironment3.html?highlight=pmix
-
 ## Getting IP of nodes
 Use `pjshowip`.
