@@ -1,9 +1,4 @@
 # dl4fugaku
-Main repo to keep scripts, dockerfiles, wiki, etc
+Main repo to keep scripts, dockerfiles, etc
 
-# Having a hierarchy of `venv`s
-
-This might hold the answer: https://stackoverflow.com/a/72972198/568735
-
-# Notes
-
+All the docs moved to [Wiki](https://github.com/dl4fugaku/dl4fugaku/wiki/) since it has and **excellent search function** (look for it on the left side).
