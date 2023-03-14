@@ -13,9 +13,10 @@ prep_fj_repo_2pushd () {
     [ $# -lt 1 ] && echo "Usage: $0 <root> <kfast>" && exit -1
     ROOT=$1
     KFAST=$2
+    FJBRANCH=r1.13_for_a64fx
     git clone https://github.com/fujitsu/pytorch.git
     pushd pytorch
-    git checkout fujitsu_v1.10.1_for_a64fx
+    git checkout ${FJBRANCH}
     
     pushd scripts/fujitsu
     
